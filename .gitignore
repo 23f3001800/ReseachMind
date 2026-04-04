@@ -1,5 +1,7 @@
 ## for the env files
+# env files
 .env
+.env.*
 
-for the venv
+# virtual env
 venv/
