@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+langchain
+langchain-core
+langchain-community
+langchain-groq
+langgraph
+langchain-tavily
+python-dotenv
+streamlit
+requests
+duckduckgo-search
