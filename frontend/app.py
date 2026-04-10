@@ -12,7 +12,7 @@ st.set_page_config(
 # ── Sidebar ──────────────────────────────────────────────
 with st.sidebar:
     st.title("⚙️ Settings")
-    api_url = st.text_input("FastAPI URL", value="http://127.0.0.1:8000")
+    api_url = st.text_input("FastAPI URL", value="https://reseachmind.onrender.com/")
     thread_id = st.text_input("Thread ID (session)", value="default")
 
     st.divider()
