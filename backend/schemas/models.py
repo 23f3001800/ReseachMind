@@ -65,3 +65,11 @@ class ChatResponse(BaseModel):
     report: FinalReport
     latency_ms: float
     iterations: int
+
+
+class StreamEvent(BaseModel):
+    """Server-Sent Event payload for streaming agent progress."""
+    event: Literal["agent_start", "agent_end", "tool_call", "error", "complete"]
+    agent: Optional[str] = None
+    content: Optional[str] = None
+    data: Optional[dict] = None

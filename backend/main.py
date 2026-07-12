@@ -3,10 +3,10 @@ import os
 import asyncio
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from contextlib import asynccontextmanager
-from schemas.models import ChatRequest, ChatResponse, FinalReport
-from core.supervisor import run_agent
+from schemas.models import ChatRequest, ChatResponse, FinalReport, StreamEvent
+from core.supervisor import run_agent, run_agent_stream
 from core.memory import get_conversation_history, save_to_history, clear_thread
 from core.logger import get_logger
 from config import settings
@@ -157,6 +157,68 @@ async def clear_history(thread_id: str):
         logger.error(f"Failed to clear history | thread_id={thread_id} error={e}")
         raise HTTPException(status_code=500, detail="Failed to clear history.")
     return {"message": f"Thread {thread_id} cleared."}
+
+
+@app.post("/agent/chat/stream")
+async def chat_stream(request: ChatRequest):
+    """Stream agent pipeline progress as Server-Sent Events."""
+    if not request.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+    logger.info(f"Stream request | thread_id={request.thread_id} query='{request.message[:80]}'")
+
+    async def event_generator():
+        import json
+        start = time.perf_counter()
+        last_state = {}
+
+        try:
+            async for node_name, node_output in run_agent_stream(
+                query=request.message,
+                thread_id=request.thread_id,
+            ):
+                last_state.update(node_output)
+
+                # Emit agent completion event
+                event = StreamEvent(
+                    event="agent_end",
+                    agent=node_name,
+                    content=f"{node_name} completed",
+                    data={
+                        "confidence": node_output.get("confidence"),
+                        "iterations": node_output.get("iterations"),
+                    },
+                )
+                yield f"data: {event.model_dump_json()}\n\n"
+
+            # Final complete event with full report
+            elapsed = round((time.perf_counter() - start) * 1000, 2)
+            report_data = last_state.get("final_report")
+
+            complete_event = StreamEvent(
+                event="complete",
+                content="Pipeline finished",
+                data={
+                    "report": report_data,
+                    "sources": last_state.get("sources", []),
+                    "confidence": last_state.get("confidence", 0.5),
+                    "needs_human_review": last_state.get("needs_human_review", False),
+                    "iterations": last_state.get("iterations", 0),
+                    "latency_ms": elapsed,
+                },
+            )
+            yield f"data: {complete_event.model_dump_json()}\n\n"
+
+        except Exception as e:
+            logger.error(f"Stream error | error={e}")
+            error_event = StreamEvent(event="error", content=str(e))
+            yield f"data: {error_event.model_dump_json()}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/agent/graph")

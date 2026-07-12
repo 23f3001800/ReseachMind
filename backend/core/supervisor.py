@@ -114,3 +114,62 @@ def _invoke_sync(query: str, thread_id: str) -> AgentState:
 async def run_agent(query: str, thread_id: str = "default") -> AgentState:
     """Run the full multi-agent pipeline without blocking the async event loop."""
     return await asyncio.to_thread(_invoke_sync, query, thread_id)
+
+
+def _stream_sync(query: str, thread_id: str):
+    """Synchronous generator — yields (node_name, state) tuples as each node completes."""
+    graph = get_graph()
+
+    initial_state: AgentState = {
+        "messages": [HumanMessage(content=query)],
+        "query": query,
+        "research_output": None,
+        "analysis_output": None,
+        "final_report": None,
+        "sources": [],
+        "confidence": 1.0,
+        "needs_human_review": False,
+        "review_reason": None,
+        "iterations": 0,
+        "next_agent": "researcher",
+        "research_gaps": False,
+        "retry_count": 0,
+    }
+
+    config = {"configurable": {"thread_id": thread_id}}
+
+    for event in graph.stream(initial_state, config=config):
+        # event is a dict like {"researcher": {state_updates}} or {"analyst": {...}}
+        for node_name, node_output in event.items():
+            yield node_name, node_output
+
+
+async def run_agent_stream(query: str, thread_id: str = "default"):
+    """Async generator — yields (node_name, state) tuples without blocking the event loop."""
+    import queue
+    import threading
+
+    q = queue.Queue()
+
+    def _worker():
+        try:
+            for node_name, node_output in _stream_sync(query, thread_id):
+                q.put((node_name, node_output))
+            q.put(None)  # sentinel
+        except Exception as e:
+            q.put(e)
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
+
+    while True:
+        # Poll queue without blocking the event loop
+        while q.empty():
+            await asyncio.sleep(0.1)
+
+        item = q.get()
+        if item is None:
+            break
+        if isinstance(item, Exception):
+            raise item
+        yield item
