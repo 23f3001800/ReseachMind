@@ -1,4 +1,5 @@
 import time
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -6,12 +7,26 @@ from schemas.models import ChatRequest, ChatResponse, FinalReport
 from core.supervisor import run_agent
 from core.memory import get_conversation_history, save_to_history, clear_thread
 from core.logger import get_logger
+from config import settings
 
 logger = get_logger(__name__)
 
 
+def _setup_langsmith():
+    """Configure LangSmith tracing if API key is available."""
+    if settings.langsmith_api_key:
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        os.environ["LANGCHAIN_API_KEY"] = settings.langsmith_api_key
+        os.environ["LANGCHAIN_PROJECT"] = settings.langchain_project
+        logger.info(f"LangSmith tracing enabled | project={settings.langchain_project}")
+    elif settings.langchain_tracing_v2:
+        os.environ["LANGCHAIN_TRACING_V2"] = "true"
+        logger.info("LangSmith tracing flag set but no API key provided")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _setup_langsmith()
     logger.info("Agentic Research Assistant starting...")
     yield
     logger.info("Shutting down.")

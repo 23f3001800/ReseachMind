@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     confidence_threshold: float = 0.7
     search_provider: Literal["auto", "tavily", "duckduckgo"] = "auto"
     db_path: str = "data/memory.db"
+    langsmith_api_key: str = ""
+    langchain_tracing_v2: bool = False
+    langchain_project: str = "agentic-research-assistant"
 
     class Config:
         env_file = ".env"
