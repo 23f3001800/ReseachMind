@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import json
 import time
+import sseclient
 
 st.set_page_config(
     page_title="Agentic Research Assistant",
@@ -12,8 +13,9 @@ st.set_page_config(
 # ── Sidebar ──────────────────────────────────────────────
 with st.sidebar:
     st.title("⚙️ Settings")
-    api_url = st.text_input("FastAPI URL", value="https://reseachmind.onrender.com/")
+    api_url = st.text_input("FastAPI URL", value="http://127.0.0.1:8000")
     thread_id = st.text_input("Thread ID (session)", value="default")
+    use_streaming = st.toggle("🔴 Live Streaming", value=True)
 
     st.divider()
     if st.button("🔍 Health Check"):
@@ -47,9 +49,9 @@ with st.sidebar:
     ```
     User Query
         ↓
-    Researcher Agent
-        ↓
-    Analyst Agent
+    Researcher Agent  ←─┐
+        ↓               │
+    Analyst Agent ──────┘ (retry if gaps)
         ↓
     Writer Agent
         ↓
@@ -59,7 +61,7 @@ with st.sidebar:
 
 # ── Main ──────────────────────────────────────────────────
 st.title("🤖 Agentic Research Assistant")
-st.caption("Multi-agent system: Researcher → Analyst → Writer · Memory per session · Guardrails enabled")
+st.caption("Multi-agent system: Researcher → Analyst → Writer · Memory per session · Guardrails enabled · Live streaming")
 
 tabs = st.tabs(["💬 Research", "📜 History", "📊 About"])
 
@@ -78,21 +80,142 @@ with tabs[0]:
     if run:
         if not query.strip():
             st.warning("Please enter a research query.")
+        elif use_streaming:
+            # ── Streaming mode ────────────────────────────
+            with st.status("Running multi-agent pipeline...", expanded=True) as status:
+                agent_status = st.empty()
+                start_time = time.time()
+
+                try:
+                    response = requests.post(
+                        f"{api_url}/agent/chat/stream",
+                        json={"message": query, "thread_id": thread_id},
+                        stream=True,
+                        timeout=180,
+                    )
+
+                    if not response.ok:
+                        status.update(label="❌ Failed", state="error")
+                        st.error(f"Error: {response.text}")
+                    else:
+                        final_data = None
+                        agent_icons = {
+                            "researcher": "🔍",
+                            "analyst": "📊",
+                            "writer": "✍️",
+                        }
+
+                        for line in response.iter_lines(decode_unicode=True):
+                            if not line or not line.startswith("data: "):
+                                continue
+
+                            try:
+                                event_data = json.loads(line[6:])  # strip "data: "
+                            except json.JSONDecodeError:
+                                continue
+
+                            event_type = event_data.get("event")
+                            agent_name = event_data.get("agent", "")
+                            icon = agent_icons.get(agent_name, "⚡")
+
+                            if event_type == "agent_end":
+                                conf = event_data.get("data", {}).get("confidence")
+                                conf_str = f" (confidence: {conf:.2f})" if conf else ""
+                                st.write(f"{icon} **{agent_name.title()}** completed{conf_str}")
+
+                            elif event_type == "complete":
+                                final_data = event_data.get("data", {})
+
+                            elif event_type == "error":
+                                status.update(label="❌ Error", state="error")
+                                st.error(f"Pipeline error: {event_data.get('content')}")
+
+                        if final_data and final_data.get("report"):
+                            status.update(label="✅ Report ready!", state="complete")
+                            report = final_data["report"]
+
+                            # Guardrail warning
+                            if final_data.get("needs_human_review"):
+                                st.warning(
+                                    f"⚠️ Human review recommended — "
+                                    f"confidence: {final_data.get('confidence', 0):.2f}"
+                                )
+
+                            # Metrics
+                            col1, col2, col3 = st.columns(3)
+                            col1.metric("Confidence", f"{final_data.get('confidence', 0):.2f}")
+                            col2.metric("Latency", f"{final_data.get('latency_ms', 0):.0f} ms")
+                            col3.metric("Iterations", final_data.get("iterations", 0))
+
+                            st.divider()
+
+                            # Report sections
+                            st.subheader(report.get("title", "Report"))
+                            st.markdown(f"**Summary:** {report.get('summary', '')}")
+
+                            col_a, col_b = st.columns(2)
+
+                            with col_a:
+                                st.markdown("**🔍 Key Findings**")
+                                for f in report.get("research_findings", []):
+                                    if f:
+                                        st.markdown(f"- {f}")
+
+                            with col_b:
+                                st.markdown("**📊 Analysis**")
+                                for a in report.get("analysis", []):
+                                    if a:
+                                        st.markdown(f"- {a}")
+
+                            st.markdown("**Conclusion**")
+                            st.write(report.get("conclusion", ""))
+
+                            sources = final_data.get("sources", [])
+                            if sources:
+                                with st.expander("📎 Sources"):
+                                    for s in sources:
+                                        st.write(f"- {s}")
+
+                            # Copy report button
+                            full_report_text = f"""# {report.get('title', 'Report')}
+
+## Summary
+{report.get('summary', '')}
+
+## Key Findings
+""" + "\n".join(f"- {f}" for f in report.get("research_findings", [])) + f"""
+
+## Analysis
+""" + "\n".join(f"- {a}" for a in report.get("analysis", [])) + f"""
+
+## Conclusion
+{report.get('conclusion', '')}
+"""
+                            st.download_button(
+                                "📋 Download Report as Markdown",
+                                data=full_report_text,
+                                file_name="research_report.md",
+                                mime="text/markdown",
+                            )
+                        elif not final_data:
+                            status.update(label="❌ No response", state="error")
+                            st.error("No response received from the pipeline.")
+
+                except requests.exceptions.RequestException as e:
+                    status.update(label="❌ API Error", state="error")
+                    st.error(f"API not reachable: {e}")
+
         else:
+            # ── Non-streaming mode (original) ─────────────
             with st.status("Running multi-agent pipeline...", expanded=True) as status:
                 st.write("🔍 Researcher Agent working...")
-                time.sleep(0.5)
                 st.write("📊 Analyst Agent working...")
-                time.sleep(0.5)
                 st.write("✍️ Writer Agent composing report...")
 
                 try:
                     r = requests.post(
                         f"{api_url}/agent/chat",
-                        json={
-                            "message": query,
-                            "thread_id": thread_id,
-                        },
+                        json={"message": query, "thread_id": thread_id},
                         timeout=120,
                     )
 
@@ -177,15 +300,17 @@ with tabs[2]:
     ### Agent Hierarchy
     | Agent | Role | Guardrail |
     |---|---|---|
-    | **Researcher** | Gathers factual info via web search | Flags [UNCERTAIN] content |
-    | **Analyst** | Extracts insights from research | Flags [LOW-CONFIDENCE] |
-    | **Writer** | Produces structured report | Confidence threshold check |
+    | **Researcher** | Gathers factual info via web search (tool-calling ReAct loop) | Flags [UNCERTAIN] content |
+    | **Analyst** | Extracts insights; detects gaps for re-research | Flags [LOW-CONFIDENCE] |
+    | **Writer** | Produces structured report via LLM structured output | Confidence threshold check |
 
     ### Key Features
-    - LangGraph supervisor with conditional routing
-    - Per-thread memory via MemorySaver checkpointer
+    - LangGraph supervisor with conditional routing + self-reflection loop
+    - Per-thread memory via SQLite + MemorySaver checkpointer
     - Confidence scoring on every agent output
     - Human review flag when confidence < threshold
-    - Full agent error handling and fallback
+    - Real-time SSE streaming of agent progress
+    - Full agent error handling, timeout, and fallback
     - FastAPI backend with Pydantic validation
+    - LangSmith tracing support
     """)
