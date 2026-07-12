@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     max_iterations: int = 10
     confidence_threshold: float = 0.7
     search_provider: Literal["auto", "tavily", "duckduckgo"] = "auto"
+    db_path: str = "data/memory.db"
 
     class Config:
         env_file = ".env"
