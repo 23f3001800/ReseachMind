@@ -1,14 +1,15 @@
 import time
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_community.tools import DuckDuckGoSearchRun
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from config import settings
 from core.state import AgentState
 from core.logger import get_logger
-import re
+from agents.tools import web_search
 
 logger = get_logger(__name__)
+
+RESEARCHER_TOOLS = [web_search]
 
 
 def get_researcher_llm():
@@ -19,10 +20,10 @@ def get_researcher_llm():
     )
 
 
-RESEARCHER_PROMPT = ChatPromptTemplate.from_messages([
-    (
-        "system",
-        """You are a Research Agent. Your ONLY job is to gather factual information.
+RESEARCHER_SYSTEM = """You are a Research Agent. Your ONLY job is to gather factual information.
+
+You have access to a web_search tool. Use it to find current, factual information.
+You may call the tool multiple times with different queries to be thorough.
 
 Rules:
 - Provide factual, sourced information only
@@ -32,7 +33,7 @@ Rules:
 - Flag uncertainty explicitly with [UNCERTAIN]
 - If you cannot find reliable info, say so clearly
 
-Format your output as:
+After gathering information via search, compile your final output as:
 FINDINGS:
 1. [finding]
 2. [finding]
@@ -40,34 +41,58 @@ FINDINGS:
 
 SOURCES:
 - [source or search query used]
-""",
-    ),
-    ("human", "Research this topic thoroughly: {query}\n\nPrevious context: {context}"),
-])
+"""
 
 
 def researcher_node(state: AgentState) -> AgentState:
-    """Researcher agent — gathers factual information."""
+    """Researcher agent — gathers factual information via tool-calling ReAct loop."""
     query = state["query"]
-    context = ""
     start = time.perf_counter()
     logger.info(f"Researcher started | query='{query[:80]}'")
 
-    # Use search tool if Tavily not configured
-    try:
-        search = DuckDuckGoSearchRun()
-        search_results = search.run(query)
-        context = f"Web search results:\n{search_results}"
-        logger.info(f"Web search completed | results_length={len(search_results)}")
-    except Exception as e:
-        context = "Web search unavailable. Using internal knowledge only."
-        logger.warning(f"Web search failed | error={e}")
-
     llm = get_researcher_llm()
-    chain = RESEARCHER_PROMPT | llm | StrOutputParser()
+    llm_with_tools = llm.bind_tools(RESEARCHER_TOOLS)
+
+    messages = [
+        {"role": "system", "content": RESEARCHER_SYSTEM},
+        {"role": "human", "content": f"Research this topic thoroughly: {query}"},
+    ]
+
+    # Tool-calling map for execution
+    tool_map = {t.name: t for t in RESEARCHER_TOOLS}
 
     try:
-        result = chain.invoke({"query": query, "context": context})
+        # ReAct loop: let the LLM call tools until it produces a final text response
+        max_tool_rounds = 5
+        for round_num in range(max_tool_rounds):
+            response = llm_with_tools.invoke(messages)
+            messages.append(response)
+
+            # If no tool calls, the LLM is done — break out
+            if not response.tool_calls:
+                logger.info(f"Researcher LLM finished | rounds={round_num + 1}")
+                break
+
+            # Execute each tool call and append results
+            for tool_call in response.tool_calls:
+                tool_name = tool_call["name"]
+                tool_args = tool_call["args"]
+                logger.info(f"Tool call | tool={tool_name} args={tool_args}")
+
+                tool_fn = tool_map.get(tool_name)
+                if tool_fn:
+                    tool_result = tool_fn.invoke(tool_args)
+                else:
+                    tool_result = f"Unknown tool: {tool_name}"
+
+                messages.append(
+                    ToolMessage(content=str(tool_result), tool_call_id=tool_call["id"])
+                )
+        else:
+            logger.warning(f"Researcher hit max tool rounds ({max_tool_rounds})")
+
+        # Extract the final text response
+        result = response.content if hasattr(response, "content") else str(response)
         confidence = 0.8 if "[UNCERTAIN]" not in result else 0.5
 
         # Extract sources from output
