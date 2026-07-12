@@ -17,3 +17,5 @@ class AgentState(TypedDict):
     review_reason:     Optional[str]
     iterations:        int
     next_agent:        Optional[str]
+    research_gaps:     bool            # True if analyst found significant gaps
+    retry_count:       int             # Number of researcher retries so far

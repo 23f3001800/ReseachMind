@@ -77,15 +77,41 @@ def analyst_node(state: AgentState) -> AgentState:
         if "[LOW-CONFIDENCE]" in result:
             confidence = min(confidence, 0.5)
 
+        # Detect research gaps for potential retry
+        has_gaps = "GAPS IDENTIFIED:" in result
+        gap_lines = []
+        if has_gaps:
+            gap_section = result.split("GAPS IDENTIFIED:")[-1].strip()
+            gap_lines = [l.strip() for l in gap_section.split("\n") if l.strip() and len(l.strip()) > 5]
+        significant_gaps = len(gap_lines) >= 2
+
+        retry_count = state.get("retry_count", 0)
+        max_retries = 1
+
+        # If significant gaps found and we haven't retried yet, go back to researcher
+        if significant_gaps and retry_count < max_retries:
+            logger.info(
+                f"Analyst found {len(gap_lines)} gaps — routing back to researcher "
+                f"(retry {retry_count + 1}/{max_retries})"
+            )
+            next_agent = "researcher"
+        else:
+            next_agent = "writer"
+
         elapsed = round((time.perf_counter() - start) * 1000, 2)
-        logger.info(f"Analyst completed | confidence={confidence} duration_ms={elapsed}")
+        logger.info(
+            f"Analyst completed | confidence={confidence} "
+            f"gaps={len(gap_lines)} next={next_agent} duration_ms={elapsed}"
+        )
 
         return {
             **state,
             "analysis_output": result,
             "confidence": confidence,
+            "research_gaps": significant_gaps,
+            "retry_count": retry_count + (1 if next_agent == "researcher" else 0),
             "iterations": state.get("iterations", 0) + 1,
-            "next_agent": "writer",
+            "next_agent": next_agent,
         }
     except Exception as e:
         elapsed = round((time.perf_counter() - start) * 1000, 2)

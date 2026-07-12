@@ -57,7 +57,7 @@ def build_graph():
     graph.add_conditional_edges(
         "analyst",
         route_from_analyst,
-        {"writer": "writer"},
+        {"writer": "writer", "researcher": "researcher"},
     )
     graph.add_edge("writer", END)
 
@@ -94,6 +94,8 @@ def _invoke_sync(query: str, thread_id: str) -> AgentState:
         "review_reason": None,
         "iterations": 0,
         "next_agent": "researcher",
+        "research_gaps": False,
+        "retry_count": 0,
     }
 
     config = {"configurable": {"thread_id": thread_id}}
