@@ -1,8 +1,12 @@
+import time
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from config import settings
 from core.state import AgentState
 from schemas.models import WriterReport
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_writer_llm():
@@ -45,6 +49,8 @@ def writer_node(state: AgentState) -> AgentState:
     """Writer agent — produces final structured report via LLM structured output."""
     research = state.get("research_output", "No research available.")
     analysis = state.get("analysis_output", "No analysis available.")
+    start = time.perf_counter()
+    logger.info("Writer started | generating structured report")
 
     llm = get_writer_llm()
     structured_llm = llm.with_structured_output(WriterReport)
@@ -61,6 +67,12 @@ def writer_node(state: AgentState) -> AgentState:
         confidence = state.get("confidence", 0.8)
         needs_review = confidence < settings.confidence_threshold
 
+        elapsed = round((time.perf_counter() - start) * 1000, 2)
+        logger.info(
+            f"Writer completed | title='{report.title[:60]}' "
+            f"confidence={confidence} needs_review={needs_review} duration_ms={elapsed}"
+        )
+
         return {
             **state,
             "final_report": report.model_dump(),
@@ -74,6 +86,8 @@ def writer_node(state: AgentState) -> AgentState:
             "next_agent": "END",
         }
     except Exception as e:
+        elapsed = round((time.perf_counter() - start) * 1000, 2)
+        logger.error(f"Writer failed | error={e} duration_ms={elapsed}")
         # Fallback: produce a degraded report dict on failure
         return {
             **state,

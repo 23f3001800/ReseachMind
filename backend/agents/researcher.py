@@ -1,10 +1,14 @@
+import time
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.tools import DuckDuckGoSearchRun
 from config import settings
 from core.state import AgentState
+from core.logger import get_logger
 import re
+
+logger = get_logger(__name__)
 
 
 def get_researcher_llm():
@@ -46,14 +50,18 @@ def researcher_node(state: AgentState) -> AgentState:
     """Researcher agent — gathers factual information."""
     query = state["query"]
     context = ""
+    start = time.perf_counter()
+    logger.info(f"Researcher started | query='{query[:80]}'")
 
     # Use search tool if Tavily not configured
     try:
         search = DuckDuckGoSearchRun()
         search_results = search.run(query)
         context = f"Web search results:\n{search_results}"
-    except Exception:
+        logger.info(f"Web search completed | results_length={len(search_results)}")
+    except Exception as e:
         context = "Web search unavailable. Using internal knowledge only."
+        logger.warning(f"Web search failed | error={e}")
 
     llm = get_researcher_llm()
     chain = RESEARCHER_PROMPT | llm | StrOutputParser()
@@ -72,6 +80,12 @@ def researcher_node(state: AgentState) -> AgentState:
                 if line.strip()
             ]
 
+        elapsed = round((time.perf_counter() - start) * 1000, 2)
+        logger.info(
+            f"Researcher completed | confidence={confidence} "
+            f"sources={len(sources)} duration_ms={elapsed}"
+        )
+
         return {
             **state,
             "research_output": result,
@@ -81,6 +95,8 @@ def researcher_node(state: AgentState) -> AgentState:
             "next_agent": "analyst",
         }
     except Exception as e:
+        elapsed = round((time.perf_counter() - start) * 1000, 2)
+        logger.error(f"Researcher failed | error={e} duration_ms={elapsed}")
         return {
             **state,
             "research_output": f"Research failed: {str(e)}",

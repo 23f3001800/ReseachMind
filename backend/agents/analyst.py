@@ -1,8 +1,12 @@
+import time
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from config import settings
 from core.state import AgentState
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_analyst_llm():
@@ -46,8 +50,11 @@ GAPS IDENTIFIED:
 def analyst_node(state: AgentState) -> AgentState:
     """Analyst agent — extracts insights from research."""
     research = state.get("research_output", "")
+    start = time.perf_counter()
+    logger.info(f"Analyst started | research_length={len(research) if research else 0}")
 
     if not research:
+        logger.warning("Analyst received empty research — flagging for review")
         return {
             **state,
             "analysis_output": "No research available to analyze.",
@@ -70,6 +77,9 @@ def analyst_node(state: AgentState) -> AgentState:
         if "[LOW-CONFIDENCE]" in result:
             confidence = min(confidence, 0.5)
 
+        elapsed = round((time.perf_counter() - start) * 1000, 2)
+        logger.info(f"Analyst completed | confidence={confidence} duration_ms={elapsed}")
+
         return {
             **state,
             "analysis_output": result,
@@ -78,6 +88,8 @@ def analyst_node(state: AgentState) -> AgentState:
             "next_agent": "writer",
         }
     except Exception as e:
+        elapsed = round((time.perf_counter() - start) * 1000, 2)
+        logger.error(f"Analyst failed | error={e} duration_ms={elapsed}")
         return {
             **state,
             "analysis_output": f"Analysis failed: {str(e)}",

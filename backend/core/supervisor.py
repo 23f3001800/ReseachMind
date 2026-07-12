@@ -1,4 +1,5 @@
 import asyncio
+import time
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage
 from core.state import AgentState
@@ -7,6 +8,9 @@ from agents.researcher import researcher_node
 from agents.analyst import analyst_node
 from agents.writer import writer_node
 from config import settings
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def route_after_supervisor(state: AgentState) -> str:
@@ -19,12 +23,17 @@ def route_after_supervisor(state: AgentState) -> str:
 
 def route_from_researcher(state: AgentState) -> str:
     if state.get("needs_human_review"):
+        logger.info("Routing: researcher → writer (skipping analyst — needs review)")
         return "writer"
-    return state.get("next_agent", "analyst")
+    next_node = state.get("next_agent", "analyst")
+    logger.info(f"Routing: researcher → {next_node}")
+    return next_node
 
 
 def route_from_analyst(state: AgentState) -> str:
-    return state.get("next_agent", "writer")
+    next_node = state.get("next_agent", "writer")
+    logger.info(f"Routing: analyst → {next_node}")
+    return next_node
 
 
 def build_graph():
@@ -68,6 +77,9 @@ def get_graph():
 
 def _invoke_sync(query: str, thread_id: str) -> AgentState:
     """Synchronous graph invocation — runs in a thread pool."""
+    start = time.perf_counter()
+    logger.info(f"Pipeline started | thread_id={thread_id} query='{query[:80]}'")
+
     graph = get_graph()
 
     initial_state: AgentState = {
@@ -85,7 +97,16 @@ def _invoke_sync(query: str, thread_id: str) -> AgentState:
     }
 
     config = {"configurable": {"thread_id": thread_id}}
-    return graph.invoke(initial_state, config=config)
+    result = graph.invoke(initial_state, config=config)
+
+    elapsed = round((time.perf_counter() - start) * 1000, 2)
+    logger.info(
+        f"Pipeline completed | thread_id={thread_id} "
+        f"iterations={result.get('iterations', 0)} "
+        f"confidence={result.get('confidence', 0)} "
+        f"duration_ms={elapsed}"
+    )
+    return result
 
 
 async def run_agent(query: str, thread_id: str = "default") -> AgentState:

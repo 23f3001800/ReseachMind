@@ -5,13 +5,16 @@ from contextlib import asynccontextmanager
 from schemas.models import ChatRequest, ChatResponse, FinalReport
 from core.supervisor import run_agent
 from core.memory import get_conversation_history, save_to_history, clear_thread
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Agentic Research Assistant starting...")
+    logger.info("Agentic Research Assistant starting...")
     yield
-    print("Shutting down.")
+    logger.info("Shutting down.")
 
 
 app = FastAPI(
@@ -40,6 +43,7 @@ async def chat(request: ChatRequest):
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
+    logger.info(f"Chat request | thread_id={request.thread_id} query='{request.message[:80]}'")
     start = time.perf_counter()
 
     try:
@@ -48,6 +52,7 @@ async def chat(request: ChatRequest):
             thread_id=request.thread_id,
         )
     except Exception as e:
+        logger.error(f"Pipeline failed | thread_id={request.thread_id} error={e}")
         raise HTTPException(status_code=500, detail=f"Agent pipeline failed: {str(e)}")
 
     report_data = result.get("final_report")
@@ -70,6 +75,11 @@ async def chat(request: ChatRequest):
     save_to_history(request.thread_id, request.message, report.summary)
 
     latency_ms = round((time.perf_counter() - start) * 1000, 2)
+    logger.info(
+        f"Chat response | thread_id={request.thread_id} "
+        f"confidence={report.confidence} latency_ms={latency_ms} "
+        f"needs_review={report.needs_human_review}"
+    )
 
     return ChatResponse(
         thread_id=request.thread_id,
