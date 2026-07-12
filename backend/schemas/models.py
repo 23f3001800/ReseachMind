@@ -45,6 +45,15 @@ class FinalReport(BaseModel):
     needs_human_review: bool = False
 
 
+class WriterReport(BaseModel):
+    """Schema for LLM structured output — only contains fields the LLM produces."""
+    title: str = Field(description="A concise, descriptive report title")
+    summary: str = Field(description="2-3 sentence executive summary")
+    research_findings: List[str] = Field(description="Key factual findings from the research")
+    analysis: List[str] = Field(description="Analytical insights and patterns")
+    conclusion: str = Field(description="Final conclusion paragraph")
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=3, max_length=1000)
     thread_id: str = Field(default="default")

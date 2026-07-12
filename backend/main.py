@@ -5,34 +5,6 @@ from contextlib import asynccontextmanager
 from schemas.models import ChatRequest, ChatResponse, FinalReport
 from core.supervisor import run_agent
 from core.memory import get_conversation_history, save_to_history, clear_thread
-import re
-
-
-def parse_report(raw: str, sources: list, confidence: float, needs_review: bool) -> FinalReport:
-    """Parse raw writer output into FinalReport schema."""
-    def extract(tag: str) -> str:
-        pattern = rf"{tag}:\s*(.*?)(?=\n[A-Z ]+:|$)"
-        match = re.search(pattern, raw, re.DOTALL)
-        return match.group(1).strip() if match else ""
-
-    def extract_list(tag: str):
-        section = extract(tag)
-        return [
-            re.sub(r"^\d+\.\s*|-\s*", "", line).strip()
-            for line in section.split("\n")
-            if line.strip() and len(line.strip()) > 3
-        ]
-
-    return FinalReport(
-        title=extract("TITLE") or "Research Report",
-        summary=extract("SUMMARY") or raw[:300],
-        research_findings=extract_list("KEY FINDINGS"),
-        analysis=extract_list("ANALYSIS"),
-        conclusion=extract("CONCLUSION") or "",
-        sources=sources,
-        confidence=confidence,
-        needs_human_review=needs_review,
-    )
 
 
 @asynccontextmanager
@@ -78,19 +50,24 @@ async def chat(request: ChatRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Agent pipeline failed: {str(e)}")
 
-    raw_report = result.get("final_report", "")
-    if not raw_report:
+    report_data = result.get("final_report")
+    if not report_data:
         raise HTTPException(status_code=500, detail="Agent produced no output.")
 
-    report = parse_report(
-        raw=raw_report,
+    # Build FinalReport from structured output dict + pipeline metadata
+    report = FinalReport(
+        title=report_data.get("title", "Research Report"),
+        summary=report_data.get("summary", ""),
+        research_findings=report_data.get("research_findings", []),
+        analysis=report_data.get("analysis", []),
+        conclusion=report_data.get("conclusion", ""),
         sources=result.get("sources", []),
         confidence=result.get("confidence", 0.5),
-        needs_review=result.get("needs_human_review", False),
+        needs_human_review=result.get("needs_human_review", False),
     )
 
     # Save to memory
-    save_to_history(request.thread_id, request.message, raw_report)
+    save_to_history(request.thread_id, request.message, report.summary)
 
     latency_ms = round((time.perf_counter() - start) * 1000, 2)
 

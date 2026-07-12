@@ -1,4 +1,4 @@
-from typing import List, Annotated, Optional
+from typing import Dict, List, Annotated, Optional
 from typing_extensions import TypedDict
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
@@ -10,7 +10,7 @@ class AgentState(TypedDict):
     query:             str
     research_output:   Optional[str]
     analysis_output:   Optional[str]
-    final_report:      Optional[str]
+    final_report:      Optional[Dict]
     sources:           List[str]
     confidence:        float
     needs_human_review: bool

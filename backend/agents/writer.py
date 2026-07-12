@@ -1,8 +1,8 @@
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
 from config import settings
 from core.state import AgentState
+from schemas.models import WriterReport
 
 
 def get_writer_llm():
@@ -23,25 +23,7 @@ Rules:
 - Be concise but complete
 - Use plain language
 - Do not add information not present in research/analysis
-- Structure output strictly as shown below
-
-Output format:
-TITLE: [Report title]
-
-SUMMARY:
-[2-3 sentence executive summary]
-
-KEY FINDINGS:
-1. [finding]
-2. [finding]
-3. [finding]
-
-ANALYSIS:
-1. [insight]
-2. [insight]
-
-CONCLUSION:
-[Final conclusion paragraph]
+- Provide a clear title, executive summary, key findings, analysis insights, and a conclusion
 """,
     ),
     (
@@ -60,15 +42,16 @@ Analysis:
 
 
 def writer_node(state: AgentState) -> AgentState:
-    """Writer agent — produces final structured report."""
+    """Writer agent — produces final structured report via LLM structured output."""
     research = state.get("research_output", "No research available.")
     analysis = state.get("analysis_output", "No analysis available.")
 
     llm = get_writer_llm()
-    chain = WRITER_PROMPT | llm | StrOutputParser()
+    structured_llm = llm.with_structured_output(WriterReport)
+    chain = WRITER_PROMPT | structured_llm
 
     try:
-        result = chain.invoke({
+        report: WriterReport = chain.invoke({
             "query": state["query"],
             "research": research,
             "analysis": analysis,
@@ -80,7 +63,7 @@ def writer_node(state: AgentState) -> AgentState:
 
         return {
             **state,
-            "final_report": result,
+            "final_report": report.model_dump(),
             "confidence": confidence,
             "needs_human_review": needs_review,
             "review_reason": (
@@ -91,9 +74,16 @@ def writer_node(state: AgentState) -> AgentState:
             "next_agent": "END",
         }
     except Exception as e:
+        # Fallback: produce a degraded report dict on failure
         return {
             **state,
-            "final_report": f"Report generation failed: {str(e)}",
+            "final_report": {
+                "title": "Report Generation Failed",
+                "summary": str(e),
+                "research_findings": [],
+                "analysis": [],
+                "conclusion": f"Report generation failed: {str(e)}",
+            },
             "confidence": 0.0,
             "needs_human_review": True,
             "review_reason": f"Writer agent error: {str(e)}",
