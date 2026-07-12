@@ -71,7 +71,7 @@ async def chat(request: ChatRequest):
     start = time.perf_counter()
 
     try:
-        result = run_agent(
+        result = await run_agent(
             query=request.message,
             thread_id=request.thread_id,
         )

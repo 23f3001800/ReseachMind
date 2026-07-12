@@ -1,3 +1,4 @@
+import asyncio
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage
 from core.state import AgentState
@@ -65,8 +66,8 @@ def get_graph():
     return _graph
 
 
-def run_agent(query: str, thread_id: str = "default") -> AgentState:
-    """Run the full multi-agent pipeline for a query."""
+def _invoke_sync(query: str, thread_id: str) -> AgentState:
+    """Synchronous graph invocation — runs in a thread pool."""
     graph = get_graph()
 
     initial_state: AgentState = {
@@ -84,5 +85,9 @@ def run_agent(query: str, thread_id: str = "default") -> AgentState:
     }
 
     config = {"configurable": {"thread_id": thread_id}}
-    result = graph.invoke(initial_state, config=config)
-    return result
+    return graph.invoke(initial_state, config=config)
+
+
+async def run_agent(query: str, thread_id: str = "default") -> AgentState:
+    """Run the full multi-agent pipeline without blocking the async event loop."""
+    return await asyncio.to_thread(_invoke_sync, query, thread_id)
