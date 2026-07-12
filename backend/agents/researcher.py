@@ -49,13 +49,35 @@ def researcher_node(state: AgentState) -> AgentState:
     start = time.perf_counter()
     logger.info(f"Researcher started | query='{query[:80]}'")
 
+    # Check for RAG context from uploaded documents
+    rag_context = ""
+    try:
+        from core.vectorstore import get_context_for_query, has_documents
+        if has_documents():
+            rag_context = get_context_for_query(query, k=3)
+            if rag_context:
+                logger.info(f"RAG context injected | chars={len(rag_context)}")
+    except ImportError:
+        pass  # Vector store dependencies not installed
+
     llm = get_researcher_llm()
     search_tools = get_search_tools()
     llm_with_tools = llm.bind_tools(search_tools)
 
+    # Build user message with optional RAG context
+    user_msg = f"Research this topic thoroughly: {query}"
+    if rag_context:
+        user_msg = (
+            f"The user has uploaded documents. Here is relevant context from those documents:\n\n"
+            f"{rag_context}\n\n"
+            f"---\n\n"
+            f"Now research this topic thoroughly, combining the uploaded document context "
+            f"with web search results: {query}"
+        )
+
     messages = [
         {"role": "system", "content": RESEARCHER_SYSTEM},
-        {"role": "human", "content": f"Research this topic thoroughly: {query}"},
+        {"role": "human", "content": user_msg},
     ]
 
     # Tool-calling map for execution

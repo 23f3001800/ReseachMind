@@ -10,6 +10,7 @@ from core.supervisor import run_agent, run_agent_stream
 from core.memory import get_conversation_history, save_to_history, clear_thread
 from core.logger import get_logger
 from core.rag import load_document, load_text, chunk_text
+from core import vectorstore
 from config import settings
 
 logger = get_logger(__name__)
@@ -276,6 +277,12 @@ async def upload_document(file: UploadFile = File(...)):
             "chunks": chunks,
         }
 
+        # Index in vector store for semantic search
+        try:
+            vectorstore.add_documents(chunks, source=file.filename)
+        except ImportError as ie:
+            logger.warning(f"Vector indexing skipped — {ie}")
+
         logger.info(
             f"Document uploaded | file={file.filename} "
             f"chars={len(text)} chunks={len(chunks)}"
@@ -305,4 +312,18 @@ async def list_documents():
             for name, data in _document_store.items()
         ],
         "count": len(_document_store),
-    }
+    }
+
+
+@app.post("/agent/search")
+async def search_documents(query: str, k: int = 5):
+    """Semantic search across uploaded documents."""
+    if not vectorstore.has_documents():
+        raise HTTPException(status_code=404, detail="No documents indexed. Upload a file first.")
+
+    try:
+        results = vectorstore.search(query, k=k)
+        return {"query": query, "results": results, "count": len(results)}
+    except Exception as e:
+        logger.error(f"Search failed | error={e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
