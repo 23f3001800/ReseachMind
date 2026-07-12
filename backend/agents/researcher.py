@@ -5,11 +5,10 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from config import settings
 from core.state import AgentState
 from core.logger import get_logger
-from agents.tools import web_search
+from agents.tools import get_search_tools
 
 logger = get_logger(__name__)
 
-RESEARCHER_TOOLS = [web_search]
 
 
 def get_researcher_llm():
@@ -51,7 +50,8 @@ def researcher_node(state: AgentState) -> AgentState:
     logger.info(f"Researcher started | query='{query[:80]}'")
 
     llm = get_researcher_llm()
-    llm_with_tools = llm.bind_tools(RESEARCHER_TOOLS)
+    search_tools = get_search_tools()
+    llm_with_tools = llm.bind_tools(search_tools)
 
     messages = [
         {"role": "system", "content": RESEARCHER_SYSTEM},
@@ -59,7 +59,7 @@ def researcher_node(state: AgentState) -> AgentState:
     ]
 
     # Tool-calling map for execution
-    tool_map = {t.name: t for t in RESEARCHER_TOOLS}
+    tool_map = {t.name: t for t in search_tools}
 
     try:
         # ReAct loop: let the LLM call tools until it produces a final text response

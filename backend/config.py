@@ -1,3 +1,4 @@
+from typing import Literal
 from pydantic_settings import BaseSettings
 
 
@@ -8,9 +9,10 @@ class Settings(BaseSettings):
     temperature: float = 0.1
     max_iterations: int = 10
     confidence_threshold: float = 0.7
+    search_provider: Literal["auto", "tavily", "duckduckgo"] = "auto"
 
     class Config:
         env_file = ".env"
 
 
-settings = Settings()
+settings = Settings()
