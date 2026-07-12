@@ -1,7 +1,7 @@
 import time
 import os
 import asyncio
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from contextlib import asynccontextmanager
@@ -9,6 +9,7 @@ from schemas.models import ChatRequest, ChatResponse, FinalReport, StreamEvent
 from core.supervisor import run_agent, run_agent_stream
 from core.memory import get_conversation_history, save_to_history, clear_thread
 from core.logger import get_logger
+from core.rag import load_document, load_text, chunk_text
 from config import settings
 
 logger = get_logger(__name__)
@@ -236,4 +237,72 @@ async def get_graph_info():
             "request timeout (120s)",
             "self-reflection retry loop",
         ],
+    }
+
+
+# ── RAG: Document Upload ──────────────────────────────────
+# In-memory document store (per session — replaced by vector DB in commit 17)
+_document_store: dict = {}
+
+
+@app.post("/agent/upload")
+async def upload_document(file: UploadFile = File(...)):
+    """Upload a document (PDF, TXT, MD) for RAG-enhanced research."""
+    allowed_exts = {".pdf", ".txt", ".md"}
+    ext = os.path.splitext(file.filename or "")[1].lower()
+
+    if ext not in allowed_exts:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: {ext}. Allowed: {allowed_exts}",
+        )
+
+    # Save to temp location
+    upload_dir = "data/uploads"
+    os.makedirs(upload_dir, exist_ok=True)
+    file_path = os.path.join(upload_dir, file.filename)
+
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    try:
+        text = load_document(file_path)
+        chunks = chunk_text(text)
+
+        # Store chunks in memory (keyed by filename)
+        _document_store[file.filename] = {
+            "text_length": len(text),
+            "chunks": chunks,
+        }
+
+        logger.info(
+            f"Document uploaded | file={file.filename} "
+            f"chars={len(text)} chunks={len(chunks)}"
+        )
+
+        return {
+            "filename": file.filename,
+            "text_length": len(text),
+            "num_chunks": len(chunks),
+            "chunk_preview": chunks[0]["content"][:200] if chunks else "",
+        }
+    except Exception as e:
+        logger.error(f"Upload failed | file={file.filename} error={e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+
+
+@app.get("/agent/documents")
+async def list_documents():
+    """List uploaded documents and their chunk counts."""
+    return {
+        "documents": [
+            {
+                "filename": name,
+                "text_length": data["text_length"],
+                "num_chunks": len(data["chunks"]),
+            }
+            for name, data in _document_store.items()
+        ],
+        "count": len(_document_store),
     }
