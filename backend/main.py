@@ -1,7 +1,9 @@
 import time
 import os
-from fastapi import FastAPI, HTTPException
+import asyncio
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from schemas.models import ChatRequest, ChatResponse, FinalReport
 from core.supervisor import run_agent
@@ -10,6 +12,9 @@ from core.logger import get_logger
 from config import settings
 
 logger = get_logger(__name__)
+
+# Maximum time (seconds) to wait for the agent pipeline
+REQUEST_TIMEOUT = 120
 
 
 def _setup_langsmith():
@@ -47,6 +52,17 @@ app.add_middleware(
 )
 
 
+# ── Global exception handler ─────────────────────────────
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch unhandled exceptions and return a structured error response."""
+    logger.error(f"Unhandled error | path={request.url.path} error={exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An internal error occurred. Please try again."},
+    )
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "agentic-research-assistant"}
@@ -61,10 +77,20 @@ async def chat(request: ChatRequest):
     logger.info(f"Chat request | thread_id={request.thread_id} query='{request.message[:80]}'")
     start = time.perf_counter()
 
+    # Run with timeout to prevent indefinite hangs
     try:
-        result = await run_agent(
-            query=request.message,
-            thread_id=request.thread_id,
+        result = await asyncio.wait_for(
+            run_agent(
+                query=request.message,
+                thread_id=request.thread_id,
+            ),
+            timeout=REQUEST_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.error(f"Pipeline timed out after {REQUEST_TIMEOUT}s | thread_id={request.thread_id}")
+        raise HTTPException(
+            status_code=504,
+            detail=f"Agent pipeline timed out after {REQUEST_TIMEOUT} seconds.",
         )
     except Exception as e:
         logger.error(f"Pipeline failed | thread_id={request.thread_id} error={e}")
@@ -74,20 +100,27 @@ async def chat(request: ChatRequest):
     if not report_data:
         raise HTTPException(status_code=500, detail="Agent produced no output.")
 
-    # Build FinalReport from structured output dict + pipeline metadata
-    report = FinalReport(
-        title=report_data.get("title", "Research Report"),
-        summary=report_data.get("summary", ""),
-        research_findings=report_data.get("research_findings", []),
-        analysis=report_data.get("analysis", []),
-        conclusion=report_data.get("conclusion", ""),
-        sources=result.get("sources", []),
-        confidence=result.get("confidence", 0.5),
-        needs_human_review=result.get("needs_human_review", False),
-    )
+    # Build FinalReport — handle malformed data defensively
+    try:
+        report = FinalReport(
+            title=report_data.get("title", "Research Report"),
+            summary=report_data.get("summary", ""),
+            research_findings=report_data.get("research_findings", []),
+            analysis=report_data.get("analysis", []),
+            conclusion=report_data.get("conclusion", ""),
+            sources=result.get("sources", []),
+            confidence=result.get("confidence", 0.5),
+            needs_human_review=result.get("needs_human_review", False),
+        )
+    except Exception as e:
+        logger.error(f"Failed to parse report | error={e} data={report_data}")
+        raise HTTPException(status_code=500, detail="Failed to parse agent output into report.")
 
-    # Save to memory
-    save_to_history(request.thread_id, request.message, report.summary)
+    # Save to memory (non-blocking — don't fail the request if this errors)
+    try:
+        save_to_history(request.thread_id, request.message, report.summary)
+    except Exception as e:
+        logger.warning(f"Failed to save history | thread_id={request.thread_id} error={e}")
 
     latency_ms = round((time.perf_counter() - start) * 1000, 2)
     logger.info(
@@ -107,14 +140,22 @@ async def chat(request: ChatRequest):
 @app.get("/agent/history/{thread_id}")
 async def get_history(thread_id: str):
     """Retrieve conversation history for a thread."""
-    history = get_conversation_history(thread_id)
+    try:
+        history = get_conversation_history(thread_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch history | thread_id={thread_id} error={e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve history.")
     return {"thread_id": thread_id, "exchanges": history, "count": len(history)}
 
 
 @app.delete("/agent/history/{thread_id}")
 async def clear_history(thread_id: str):
     """Clear memory for a thread."""
-    clear_thread(thread_id)
+    try:
+        clear_thread(thread_id)
+    except Exception as e:
+        logger.error(f"Failed to clear history | thread_id={thread_id} error={e}")
+        raise HTTPException(status_code=500, detail="Failed to clear history.")
     return {"message": f"Thread {thread_id} cleared."}
 
 
@@ -123,12 +164,14 @@ async def get_graph_info():
     """Show agent graph structure."""
     return {
         "agents": ["researcher", "analyst", "writer"],
-        "flow": "researcher → analyst → writer",
-        "routing": "conditional — low confidence skips to writer",
-        "memory": "per thread_id via MemorySaver checkpointer",
+        "flow": "researcher → analyst → writer (with optional retry loop)",
+        "routing": "conditional — low confidence skips to writer, gaps trigger re-research",
+        "memory": "SQLite-backed conversation history + MemorySaver checkpointer",
         "guardrails": [
             "confidence threshold check",
             "agent error fallback",
             "human review flag",
+            "request timeout (120s)",
+            "self-reflection retry loop",
         ],
-    }
+    }
