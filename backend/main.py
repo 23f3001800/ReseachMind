@@ -11,6 +11,7 @@ from core.memory import get_conversation_history, save_to_history, clear_thread
 from core.logger import get_logger
 from core.rag import load_document, load_text, chunk_text
 from core import vectorstore
+from core.usage import usage_tracker, RequestMetrics
 from config import settings
 
 logger = get_logger(__name__)
@@ -130,6 +131,22 @@ async def chat(request: ChatRequest):
         f"confidence={report.confidence} latency_ms={latency_ms} "
         f"needs_review={report.needs_human_review}"
     )
+
+    # Track token usage and cost
+    metrics = RequestMetrics(
+        thread_id=request.thread_id,
+        query=request.message[:100],
+        start_time=start,
+        end_time=time.perf_counter(),
+        latency_ms=latency_ms,
+    )
+    # Estimate tokens from result iterations (approx: 500 input + 300 output per agent)
+    iterations = result.get("iterations", 3)
+    estimated_input = iterations * 500
+    estimated_output = iterations * 300
+    metrics.add_agent_usage("pipeline", estimated_input, estimated_output, settings.llm_model)
+    metrics.calculate_cost(settings.llm_model)
+    usage_tracker.record(metrics)
 
     return ChatResponse(
         thread_id=request.thread_id,
@@ -367,4 +384,19 @@ async def evaluate_report_endpoint(request: ChatRequest):
         "query": request.message,
         "report": report_data,
         "evaluation": evaluation.model_dump(),
-    }
+    }
+
+
+# ── Analytics ─────────────────────────────────────────────
+@app.get("/agent/usage")
+async def get_usage():
+    """Get cumulative token usage and cost analytics."""
+    return usage_tracker.get_summary()
+
+
+@app.delete("/agent/usage")
+async def reset_usage():
+    """Reset usage counters."""
+    usage_tracker.reset()
+    return {"message": "Usage tracker reset."}
+
