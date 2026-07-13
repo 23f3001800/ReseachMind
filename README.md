@@ -4,7 +4,7 @@ A production-grade **multi-agent research system** built with **LangGraph**, **F
 
 > **Built for portfolio / AI Engineer job applications.** Demonstrates: multi-agent orchestration, tool-calling ReAct patterns, RAG, LLM-as-judge evaluation, structured output, async design, and production hardening.
 
-[![CI](https://github.com/YOUR_USERNAME/Autonomous-AI-Research-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/Autonomous-AI-Research-Agent/actions)
+[![CI](https://github.com/23f3001800/Autonomous-AI-Research-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/23f3001800/Autonomous-AI-Research-Agent/actions)
 
 ---
 
