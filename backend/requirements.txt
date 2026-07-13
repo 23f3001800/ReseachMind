@@ -1,14 +1,35 @@
+# Core
 fastapi
 uvicorn[standard]
 pydantic
 pydantic-settings
+python-dotenv
+python-multipart
+
+# LangChain / LangGraph
 langchain
 langchain-core
 langchain-community
 langchain-groq
-langgraph
 langchain-tavily
-python-dotenv
+langgraph
+
+# Search
+duckduckgo-search
+
+# RAG
+langchain-text-splitters
+faiss-cpu
+langchain-huggingface
+sentence-transformers
+pypdf
+
+# Frontend
 streamlit
 requests
-duckduckgo-search
+sseclient-py
+
+# Testing
+pytest
+httpx
+ruff
