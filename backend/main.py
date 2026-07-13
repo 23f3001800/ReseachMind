@@ -9,10 +9,17 @@ from schemas.models import ChatRequest, ChatResponse, FinalReport, StreamEvent
 from core.supervisor import run_agent, run_agent_stream
 from core.memory import get_conversation_history, save_to_history, clear_thread
 from core.logger import get_logger
-from core.rag import load_document, load_text, chunk_text
-from core import vectorstore
 from core.usage import usage_tracker, RequestMetrics
 from config import settings
+
+# Optional RAG imports — gracefully degrade if ML deps not installed
+try:
+    from core.rag import load_document, load_text, chunk_text
+    from core import vectorstore
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
+
 
 logger = get_logger(__name__)
 
@@ -68,7 +75,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "agentic-research-assistant"}
+    return {"status": "ok", "service": "agentic-research-assistant", "rag_available": RAG_AVAILABLE}
 
 
 @app.post("/agent/chat", response_model=ChatResponse)
@@ -266,6 +273,11 @@ _document_store: dict = {}
 @app.post("/agent/upload")
 async def upload_document(file: UploadFile = File(...)):
     """Upload a document (PDF, TXT, MD) for RAG-enhanced research."""
+    if not RAG_AVAILABLE:
+        raise HTTPException(
+            status_code=501,
+            detail="RAG not available — install optional deps: pip install faiss-cpu langchain-huggingface sentence-transformers pypdf",
+        )
     allowed_exts = {".pdf", ".txt", ".md"}
     ext = os.path.splitext(file.filename or "")[1].lower()
 
@@ -335,6 +347,8 @@ async def list_documents():
 @app.post("/agent/search")
 async def search_documents(query: str, k: int = 5):
     """Semantic search across uploaded documents."""
+    if not RAG_AVAILABLE:
+        raise HTTPException(status_code=501, detail="RAG not available on this deployment.")
     if not vectorstore.has_documents():
         raise HTTPException(status_code=404, detail="No documents indexed. Upload a file first.")
 

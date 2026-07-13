@@ -1,4 +1,4 @@
-# Core
+# Core API
 fastapi
 uvicorn[standard]
 pydantic
@@ -12,24 +12,21 @@ langchain-core
 langchain-community
 langchain-groq
 langchain-tavily
+langchain-text-splitters
 langgraph
 
 # Search
 duckduckgo-search
 
-# RAG
-langchain-text-splitters
-faiss-cpu
-langchain-huggingface
-sentence-transformers
-pypdf
-
-# Frontend
-streamlit
+# HTTP
 requests
-sseclient-py
-
-# Testing
-pytest
 httpx
-ruff
+
+# RAG (optional — install for document upload + vector search)
+# pip install faiss-cpu langchain-huggingface sentence-transformers pypdf
+
+# Frontend (run separately — not needed for API server)
+# pip install streamlit sseclient-py
+
+# Testing (dev only)
+# pip install pytest ruff
