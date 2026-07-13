@@ -1,6 +1,5 @@
 """Unit tests for the researcher agent."""
 
-import pytest
 from unittest.mock import patch, MagicMock
 from agents.researcher import researcher_node
 

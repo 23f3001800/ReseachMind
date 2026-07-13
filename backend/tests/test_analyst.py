@@ -1,6 +1,5 @@
 """Unit tests for the analyst agent."""
 
-import pytest
 from unittest.mock import patch, MagicMock
 from agents.analyst import analyst_node
 

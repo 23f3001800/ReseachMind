@@ -82,7 +82,7 @@ def analyst_node(state: AgentState) -> AgentState:
         gap_lines = []
         if has_gaps:
             gap_section = result.split("GAPS IDENTIFIED:")[-1].strip()
-            gap_lines = [l.strip() for l in gap_section.split("\n") if l.strip() and len(l.strip()) > 5]
+            gap_lines = [line.strip() for line in gap_section.split("\n") if line.strip() and len(line.strip()) > 5]
         significant_gaps = len(gap_lines) >= 2
 
         retry_count = state.get("retry_count", 0)

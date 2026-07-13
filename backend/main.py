@@ -14,7 +14,7 @@ from config import settings
 
 # Optional RAG imports — gracefully degrade if ML deps not installed
 try:
-    from core.rag import load_document, load_text, chunk_text
+    from core.rag import load_document, chunk_text
     from core import vectorstore
     RAG_AVAILABLE = True
 except ImportError:
@@ -194,7 +194,6 @@ async def chat_stream(request: ChatRequest):
     logger.info(f"Stream request | thread_id={request.thread_id} query='{request.message[:80]}'")
 
     async def event_generator():
-        import json
         start = time.perf_counter()
         last_state = {}
 

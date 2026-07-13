@@ -4,9 +4,8 @@ Tracks per-request and cumulative token usage across agent nodes.
 Uses LangChain's callback mechanism to intercept usage metadata.
 """
 
-import time
 import threading
-from typing import Dict, Optional
+from typing import Dict
 from dataclasses import dataclass, field
 from core.logger import get_logger
 

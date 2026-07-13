@@ -4,8 +4,7 @@ Uses HuggingFace sentence-transformers for free, local embeddings.
 Falls back to a simple keyword search if dependencies are missing.
 """
 
-import os
-from typing import List, Dict, Optional
+from typing import List, Dict
 from core.logger import get_logger
 
 logger = get_logger(__name__)

@@ -1,6 +1,5 @@
 """Unit tests for the writer agent."""
 
-import pytest
 from unittest.mock import patch, MagicMock
 from agents.writer import writer_node
 from schemas.models import WriterReport

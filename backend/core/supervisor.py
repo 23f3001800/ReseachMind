@@ -7,7 +7,6 @@ from core.memory import get_checkpointer
 from agents.researcher import researcher_node
 from agents.analyst import analyst_node
 from agents.writer import writer_node
-from config import settings
 from core.logger import get_logger
 
 logger = get_logger(__name__)
