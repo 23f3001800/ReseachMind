@@ -2,13 +2,10 @@
 
 # 🤖 Autonomous AI Research Agent
 
-**A production-grade multi-agent research system powered by LangGraph, FastAPI & Streamlit**
+<h3>A production-grade multi-agent research system powered by LangGraph, FastAPI & Streamlit</h3>
 
 Three specialized AI agents — **Researcher**, **Analyst**, and **Writer** — collaborate through a supervised pipeline with self-reflection, guardrails, and real-time streaming.
 
-<<<<<<< HEAD
-[![CI](https://github.com/23f3001800/Autonomous-AI-Research-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/23f3001800/Autonomous-AI-Research-Agent/actions)
-=======
 [![CI](https://img.shields.io/github/actions/workflow/status/23f3001800/Autonomous-AI-Research-Agent/ci.yml?branch=main&style=for-the-badge&logo=github-actions&label=CI)](https://github.com/23f3001800/Autonomous-AI-Research-Agent/actions)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -23,7 +20,6 @@ Three specialized AI agents — **Researcher**, **Analyst**, and **Writer** — 
 **[Features](#-key-features)** · **[Architecture](#%EF%B8%8F-architecture)** · **[Quick Start](#-quick-start)** · **[API Docs](#-api-endpoints)** · **[Testing](#-testing)** · **[Evaluation](#-evaluation)**
 
 </div>
->>>>>>> ad9f799 (docs: professional README with shields.io badges and polished formatting)
 
 ---
 
@@ -287,18 +283,14 @@ Contributions are welcome! Please open an issue or submit a PR.
 
 ## 📜 License
 
-<<<<<<< HEAD
-MIT License — see [LICENSE](LICENSE) for details.
-=======
 Distributed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
 <div align="center">
 
-**Built with ❤️ by [23f3001800](https://github.com/23f3001800)**
+<h4>Built with ❤️ by <a href="https://github.com/23f3001800">23f3001800</a></h4>
 
 ⭐ Star this repo if you found it useful!
 
 </div>
->>>>>>> ad9f799 (docs: professional README with shields.io badges and polished formatting)
