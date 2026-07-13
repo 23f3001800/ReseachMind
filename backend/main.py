@@ -326,4 +326,45 @@ async def search_documents(query: str, k: int = 5):
         return {"query": query, "results": results, "count": len(results)}
     except Exception as e:
         logger.error(f"Search failed | error={e}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+@app.post("/agent/evaluate")
+async def evaluate_report_endpoint(request: ChatRequest):
+    """Run a query through the pipeline and evaluate the output with LLM-as-judge."""
+    from core.evaluator import evaluate_report
+
+    if not request.message.strip():
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+    logger.info(f"Evaluate request | query='{request.message[:80]}'")
+
+    try:
+        result = await asyncio.wait_for(
+            run_agent(query=request.message, thread_id=f"eval-{request.thread_id}"),
+            timeout=REQUEST_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Pipeline timed out during evaluation.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(e)}")
+
+    report_data = result.get("final_report")
+    if not report_data:
+        raise HTTPException(status_code=500, detail="No report generated to evaluate.")
+
+    evaluation = await asyncio.to_thread(
+        evaluate_report,
+        query=request.message,
+        report=report_data,
+        sources=result.get("sources", []),
+    )
+
+    if evaluation is None:
+        raise HTTPException(status_code=500, detail="Evaluation failed.")
+
+    return {
+        "query": request.message,
+        "report": report_data,
+        "evaluation": evaluation.model_dump(),
+    }
