@@ -146,7 +146,7 @@ with st.sidebar:
 st.title("🤖 Agentic Research Assistant")
 st.caption("Multi-agent system: Researcher → Analyst → Writer · Memory per session · Guardrails enabled · Live streaming")
 
-tabs = st.tabs(["💬 Research", "📜 History", "📊 About"])
+tabs = st.tabs(["💬 Research", "📁 Documents", "📜 History", "📊 About"])
 
 # ── Tab 1: Research ───────────────────────────────────────
 with tabs[0]:
@@ -356,8 +356,82 @@ with tabs[0]:
                     status.update(label="❌ API Error", state="error")
                     st.error(f"API not reachable: {e}")
 
-# ── Tab 2: History ────────────────────────────────────────
+# ── Tab 2: Documents (RAG) ──────────────────────────────
 with tabs[1]:
+    st.subheader("📄 Document Upload & RAG Indexing")
+    st.write("Upload PDF, TXT, or MD files to index them in the FAISS vector database. The Researcher Agent will automatically query these documents during research.")
+
+    # 1. Check RAG Status from Backend
+    rag_available = False
+    try:
+        health_resp = requests.get(f"{api_url}/health", timeout=3)
+        if health_resp.ok:
+            rag_available = health_resp.json().get("rag_available", False)
+    except Exception:
+        st.warning("Could not contact the backend to verify RAG status.")
+
+    if not rag_available:
+        st.error("⚠️ **RAG Features Disabled:** The backend does not have FAISS / vector store dependencies installed. (Typically disabled on low-memory tiers like Render Free to avoid OOM crashes). To enable, deploy on a tier with >= 1GB RAM and install the packages listed in `requirements.txt`.")
+    else:
+        # 2. File Upload Form
+        uploaded_file = st.file_uploader("Choose a document", type=["pdf", "txt", "md"])
+        if uploaded_file is not None:
+            if st.button("📤 Index Document", use_container_width=True):
+                with st.spinner("Processing and indexing document..."):
+                    try:
+                        # Prepare files payload
+                        files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                        upload_resp = requests.post(f"{api_url}/agent/upload", files=files, timeout=60)
+                        
+                        if upload_resp.ok:
+                            st.success(f"Successfully indexed '{uploaded_file.name}'!")
+                            st.json(upload_resp.json())
+                        else:
+                            st.error(f"Upload failed: {upload_resp.text}")
+                    except Exception as e:
+                        st.error(f"An error occurred: {e}")
+
+        st.divider()
+        
+        # 3. Listed Documents
+        st.subheader("📚 Indexed Documents")
+        try:
+            docs_resp = requests.get(f"{api_url}/agent/documents", timeout=5)
+            if docs_resp.ok:
+                docs_data = docs_resp.json()
+                if docs_data.get("count", 0) == 0:
+                    st.info("No documents uploaded yet.")
+                else:
+                    for doc in docs_data.get("documents", []):
+                        st.markdown(f"- **{doc['filename']}** ({doc['text_length']} chars, {doc['num_chunks']} chunks)")
+            else:
+                st.error("Failed to load document list from backend.")
+        except Exception as e:
+            st.error(f"Could not load documents: {e}")
+
+        st.divider()
+
+        # 4. Search Test
+        st.subheader("🔍 Vector Store Search Test")
+        search_query = st.text_input("Enter a query to test search retrieval")
+        if search_query:
+            if st.button("Test Retrieve", use_container_width=True):
+                with st.spinner("Searching vector database..."):
+                    try:
+                        search_resp = requests.post(f"{api_url}/agent/search?query={requests.utils.quote(search_query)}", timeout=5)
+                        if search_resp.ok:
+                            search_results = search_resp.json()
+                            st.write(f"Found {search_results['count']} matches:")
+                            for res in search_results["results"]:
+                                with st.expander(f"Source: {res['source']} (Score: {res['score']})"):
+                                    st.write(res["content"])
+                        else:
+                            st.error(f"Search failed: {search_resp.text}")
+                    except Exception as e:
+                        st.error(f"An error occurred during search: {e}")
+
+# ── Tab 3: History ────────────────────────────────────────
+with tabs[2]:
     st.subheader(f"Conversation History — Thread: {thread_id}")
     if st.button("Load History"):
         try:
@@ -376,8 +450,8 @@ with tabs[1]:
         except Exception as e:
             st.error(str(e))
 
-# ── Tab 3: About ──────────────────────────────────────────
-with tabs[2]:
+# ── Tab 4: About ──────────────────────────────────────────
+with tabs[3]:
     st.subheader("System Architecture")
     st.markdown("""
     ### Agent Hierarchy
