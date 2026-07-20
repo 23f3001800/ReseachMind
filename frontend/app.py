@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import json
 import time
+import os
 import sseclient
 
 st.set_page_config(
@@ -96,7 +97,7 @@ st.markdown("""
 # ── Sidebar ──────────────────────────────────────────────
 with st.sidebar:
     st.title("⚙️ Settings")
-    api_url = st.text_input("FastAPI URL", value="http://127.0.0.1:8000")
+    api_url = st.text_input("FastAPI URL", value=os.getenv("FASTAPI_URL", "http://127.0.0.1:8000"))
     thread_id = st.text_input("Thread ID (session)", value="default")
     use_streaming = st.toggle("🔴 Live Streaming", value=True)
 
