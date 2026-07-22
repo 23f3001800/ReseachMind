@@ -2,22 +2,26 @@
 
 # 🤖 researchMind
 
-<h3>A production-grade multi-agent research system powered by LangGraph, FastAPI & React</h3>
+<h3>A multi-agent research system built on LangGraph, FastAPI and React</h3>
 
-Three specialized AI agents — **Researcher**, **Analyst**, and **Writer** — collaborate through a supervised pipeline with self-reflection, guardrails, and real-time streaming. Every citation is a page the system actually retrieved.
+Three specialized agents — **Researcher**, **Analyst** and **Writer** — collaborate through a supervised pipeline with self-reflection, guardrails and live streaming. **Every citation is a page the system actually retrieved**, never one the model invented.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/23f3001800/Autonomous-AI-Research-Agent/ci.yml?branch=main&style=for-the-badge&logo=github-actions&label=CI)](https://github.com/23f3001800/Autonomous-AI-Research-Agent/actions)
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Multi--Agent-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
-[![Groq](https://img.shields.io/badge/Groq-Llama_3.3_70B-F55036?style=for-the-badge&logo=meta&logoColor=white)](https://console.groq.com)
-[![React](https://img.shields.io/badge/React_18-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://react.dev)
-[![Azure](https://img.shields.io/badge/Azure-Container_Apps-0078D4?style=for-the-badge&logo=microsoftazure&logoColor=white)](https://azure.microsoft.com/products/container-apps)
-[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/23f3001800/Autonomous-AI-Research-Agent/ci.yml?branch=main&style=flat-square&logo=github&label=CI)](https://github.com/23f3001800/Autonomous-AI-Research-Agent/actions)
+[![Tests](https://img.shields.io/badge/tests-51_passing-2f7a4d?style=flat-square)](#-testing)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
+[![React](https://img.shields.io/badge/React_18-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
+[![Azure](https://img.shields.io/badge/Azure-Container_Apps-0078D4?style=flat-square&logo=microsoftazure&logoColor=white)](https://azure.microsoft.com/products/container-apps)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
+
+### [→ Try it live](https://research-agent-ui.agreeablestone-a7a39990.centralindia.azurecontainerapps.io)
+
+<sub>Hosted on Azure Container Apps. It scales to zero when idle, so the **first request after a quiet period takes up to a minute** to wake the container — after that it responds normally.</sub>
 
 ---
 
-**[Features](#-key-features)** · **[Architecture](#%EF%B8%8F-architecture)** · **[Quick Start](#-quick-start)** · **[API Docs](#-api-endpoints)** · **[Testing](#-testing)** · **[Evaluation](#-evaluation)**
+**[Features](#-key-features)** · **[Architecture](#%EF%B8%8F-architecture)** · **[Quick Start](#-quick-start)** · **[API](#-api-endpoints)** · **[Testing](#-testing)** · **[Evaluation](#-evaluation)**
 
 </div>
 
@@ -27,21 +31,22 @@ Three specialized AI agents — **Researcher**, **Analyst**, and **Writer** — 
 
 | Feature | Description |
 |---|---|
-| 🔄 **Multi-Agent Pipeline** | Researcher → Analyst → Writer with LangGraph supervisor and conditional routing |
-| 🛠️ **ReAct Tool Calling** | Researcher LLM autonomously decides when and what to search via tool-calling loop |
-| 🔁 **Self-Reflection Loop** | Analyst detects research gaps → routes back to Researcher for a second pass |
-| 📄 **RAG Pipeline** | Upload PDF/TXT/MD → chunk → FAISS vector search → inject context into agents |
-| 🔗 **Traceable Citations** | Sources come only from pages the system actually retrieved — the model can't invent one |
-| ⚡ **SSE Streaming** | Real-time Server-Sent Events show each agent's progress as it completes |
-| 🎨 **React UI** | TypeScript SPA with a live pipeline view, light/dark themes, and no UI-library dependencies |
-| ⚖️ **LLM-as-Judge** | 4-dimension evaluation framework (Accuracy, Depth, Completeness, Clarity) |
-| 🧩 **Structured Output** | Writer uses Pydantic-validated `.with_structured_output()` — no regex parsing |
-| 🛡️ **Guardrails** | Confidence scoring, human review flags, error fallback, request timeout (120s) |
-| 💾 **Persistent Memory** | SQLite-backed conversation history per thread + LangGraph checkpointer |
-| 💰 **Token/Cost Tracking** | Per-request and cumulative token usage with Groq pricing estimates |
-| 🔍 **LangSmith Tracing** | Auto-enabled when `LANGSMITH_API_KEY` is set |
-| 🔎 **Configurable Search** | Auto-selects Tavily (quality) or DuckDuckGo (free) based on API key |
-| 🤖 **GitHub Actions CI** | Automated linting (Ruff) and testing (pytest) on every push/PR |
+| 🔗 **Traceable citations** | Sources are collected from *executed* searches only. A report can cite nothing the system didn't fetch |
+| 🔄 **Multi-agent pipeline** | Researcher → Analyst → Writer on a LangGraph supervisor with conditional routing |
+| 🛠️ **ReAct tool calling** | The researcher decides when and what to search, across multiple rounds |
+| 🔁 **Gap-targeted retry** | The analyst's identified gaps are fed back into a second research pass — not a repeat of the first |
+| 📡 **Live progress** | SSE streams `agent_start` / `tool_call` / `tool_result` mid-run, so you watch each search as it happens |
+| 📄 **RAG over your documents** | Upload PDF/TXT/MD → chunk → vector search → injected into the researcher alongside web results |
+| 💾 **Survives restarts** | Vector index, document catalog and history persist to a mounted volume |
+| 🎨 **React UI** | TypeScript SPA, light/dark, cancellable runs, zero UI-library dependencies (56 kB gzipped) |
+| 🔐 **Key never in the browser** | nginx proxies `/api` and injects `X-API-Key` server-side; same-origin, so no CORS surface |
+| ⚖️ **LLM-as-judge** | 4-dimension evaluation plus a golden-set harness that fails on quality regression |
+| 🧩 **Structured output** | Writer uses Pydantic-validated `.with_structured_output()` — no regex parsing |
+| 💰 **Measured token/cost** | Read from the provider's `usage_metadata`, per agent — measured, not estimated |
+| 🛡️ **Guardrails** | Confidence scoring, human-review flags, error fallback, timeouts, rate limiting, upload hardening |
+| 📋 **JSON logging** | `LOG_FORMAT=json` emits queryable fields for Log Analytics |
+| 🔍 **LangSmith tracing** | Auto-enabled when `LANGSMITH_API_KEY` is set |
+| 🤖 **CI** | Ruff + pytest, frontend typecheck + build, and Docker image builds for both services |
 
 ---
 
@@ -85,48 +90,69 @@ Three specialized AI agents — **Researcher**, **Analyst**, and **Writer** — 
 
 ---
 
+## 🔗 How citations stay honest
+
+The usual failure of an LLM research tool is a confident report citing sources
+that don't exist. researchMind makes that structurally impossible rather than
+discouraging it in a prompt:
+
+1. **Search tools record what they fetch.** Each tool writes `{url, title, provider}`
+   into a per-request collector as results come back.
+2. **The report's sources come from that collector**, never from the model's own
+   text. If the model writes a plausible-looking citation in its prose, it is not
+   in the collector, so it is not in the report.
+3. **No search means no citations.** If every search fails, the report ships with
+   an empty source list and a visible warning — not a fabricated bibliography.
+
+The evaluation harness enforces this too: a run **fails** if any report cites
+nothing, regardless of how well it scores on quality.
+
+---
+
 ## 📁 Project Structure
 
 ```
-Autonomous-AI-Research-Agent/
-├── .github/workflows/ci.yml        # GitHub Actions CI pipeline
+researchMind/
+├── .github/workflows/ci.yml         # 3 jobs: backend, frontend, image builds
 ├── backend/
 │   ├── agents/
-│   │   ├── researcher.py            # ReAct agent with tool-calling loop
+│   │   ├── researcher.py            # ReAct loop, gap-targeted retry, tool-failure recovery
 │   │   ├── analyst.py               # Insight extraction + gap detection
 │   │   ├── writer.py                # Structured report via .with_structured_output()
-│   │   └── tools.py                 # Web search tools (DuckDuckGo / Tavily)
+│   │   └── tools.py                 # Search tools + the source collector
 │   ├── core/
 │   │   ├── supervisor.py            # LangGraph orchestration + streaming
 │   │   ├── state.py                 # AgentState TypedDict
+│   │   ├── events.py                # In-flight progress sink (tool calls, agent starts)
 │   │   ├── memory.py                # SQLite conversation history
-│   │   ├── logger.py                # Structured logging factory
+│   │   ├── logger.py                # Text or JSON logging
 │   │   ├── rag.py                   # Document loading + chunking
-│   │   ├── vectorstore.py           # FAISS vector search
+│   │   ├── vectorstore.py           # fastembed + FAISS, persisted to disk
 │   │   ├── evaluator.py             # LLM-as-judge evaluation
-│   │   └── usage.py                 # Token/cost tracking
-│   ├── schemas/models.py            # Pydantic models (request/response/agent)
+│   │   └── usage.py                 # Measured token/cost tracking
+│   ├── eval/                        # Golden-set regression harness
+│   ├── schemas/models.py            # Pydantic request/response models
 │   ├── config.py                    # Settings with env var binding
 │   ├── main.py                      # FastAPI app (12 endpoints)
-│   ├── tests/                       # 38 unit + integration tests
-│   ├── requirements.txt             # core deps
-│   ├── requirements-rag.txt         # optional vector-search stack (~1GB RAM)
+│   ├── tests/                       # 51 unit + integration tests
+│   ├── requirements.lock            # Pinned — what actually ships
+│   ├── requirements-rag.txt         # Vector stack (fastembed, faiss, pypdf)
 │   └── Dockerfile
 ├── frontend/                        # React 18 + TypeScript + Vite
 │   ├── src/
-│   │   ├── api/client.ts            # typed client, SSE reader, abort support
-│   │   ├── components/              # ui primitives, Pipeline, ReportView
+│   │   ├── api/client.ts            # Typed client, SSE reader, abort support
+│   │   ├── components/              # ui primitives, Pipeline, ActivityFeed, ReportView
 │   │   ├── views/                   # Research, Documents, Evaluate, Usage, History
-│   │   ├── hooks/                   # persisted settings + theme
-│   │   ├── styles/                  # design tokens, light/dark themes
+│   │   ├── hooks/                   # Persisted settings + theme
+│   │   ├── styles/                  # Design tokens, light/dark themes
 │   │   └── App.tsx
-│   ├── nginx.conf.template          # SPA + /api proxy with key injection
-│   ├── docker-entrypoint.sh         # renders nginx.conf from env at start
+│   ├── nginx.conf.template          # SPA + /api proxy with server-side key injection
+│   ├── docker-entrypoint.sh         # Renders nginx.conf from env at start
 │   └── Dockerfile
-├── deploy/azure.sh                  # reproducible Azure Container Apps deploy
-├── Dockerfile                       # all-in-one image for local use
-├── .env.example
-└── README.md
+├── deploy/azure.sh                  # Reproducible Azure Container Apps deploy
+├── Dockerfile                       # All-in-one image for local use
+├── PROJECT_GUIDE.md                 # Architecture review, gap analysis, operations
+└── .env.example
 ```
 
 ---
@@ -148,7 +174,7 @@ cp .env.example backend/.env
 Edit `backend/.env`:
 
 ```env
-GROQ_API_KEY=your_groq_key_here          # Required — get free at console.groq.com
+GROQ_API_KEY=your_groq_key_here          # Required — free at console.groq.com
 TAVILY_API_KEY=your_tavily_key_here      # Optional — better search quality
 LANGSMITH_API_KEY=your_langsmith_key     # Optional — enables tracing
 SEARCH_PROVIDER=auto                      # auto | tavily | duckduckgo
@@ -157,9 +183,13 @@ SEARCH_PROVIDER=auto                      # auto | tavily | duckduckgo
 ### 3. Install & Run
 
 ```bash
-# Backend
+# Backend — the lockfile is what CI and the images build from
 cd backend
-pip install -r requirements.txt
+pip install -r requirements.lock
+
+# Optional: document upload and semantic search (~250 MB of ONNX runtime)
+pip install -r requirements-rag.txt
+
 uvicorn main:app --reload --port 8000
 
 # Frontend — in a second terminal (Node 20+)
@@ -167,6 +197,10 @@ cd frontend
 npm install
 npm run dev
 ```
+
+Without the RAG extras the API still runs — `/health` reports
+`"rag_available": false` and the document endpoints return 501 rather than
+failing at first use.
 
 Vite proxies `/api/*` to `http://127.0.0.1:8000`, so the SPA talks to the same
 origin in development and in production. Point it elsewhere with
@@ -192,9 +226,17 @@ docker build -t research-agent-ui  ./frontend
 ./deploy/azure.sh --groq-key <YOUR_GROQ_KEY>
 ```
 
-Provisions a resource group, ACR, a Container Apps environment and both apps —
-managed-identity registry access, a generated API key, and CORS locked to the UI
-origin. See [PROJECT_GUIDE.md](PROJECT_GUIDE.md) §6 for cost shape and operations.
+Provisions a resource group, ACR, a Container Apps environment, an Azure Files
+share for persistent state, and both apps — with managed-identity registry
+access, a generated API key, and CORS locked to the UI origin. Roughly **$5–8 a
+month** at low traffic, since both apps scale to zero.
+
+See [PROJECT_GUIDE.md](PROJECT_GUIDE.md) for the architecture review, the
+outstanding gaps, and operational notes (key rotation, cost shape, and the
+platform quirks worth knowing before you deploy).
+
+> **Before exposing any deployment publicly, set `API_KEY`.** Without it,
+> anyone who finds the URL can spend your Groq quota.
 
 ---
 
@@ -215,23 +257,31 @@ origin. See [PROJECT_GUIDE.md](PROJECT_GUIDE.md) §6 for cost shape and operatio
 | `GET` | `/agent/usage` | Token/cost analytics |
 | `DELETE` | `/agent/usage` | Reset usage counters |
 
-> 📖 **Interactive API docs:** `http://localhost:8000/docs` (Swagger UI)
+All endpoints except `/health` and the docs require an `X-API-Key` header when
+`API_KEY` is set, and are rate limited per client.
+
+> 📖 **Interactive docs:** `http://localhost:8000/docs` (Swagger UI)
+> 🌐 **Live API:** [`/api/health`](https://research-agent-ui.agreeablestone-a7a39990.centralindia.azurecontainerapps.io/api/health) — proxied through the UI, which supplies the key
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-# Backend — 38 tests
+# Backend — 51 tests, no network or API key needed
 cd backend
-pytest tests/ -v
+pytest tests/ -q
 ruff check . --ignore E501
 
-# Frontend — strict TypeScript, no `any`
+# Frontend — strict TypeScript
 cd frontend
 npm run typecheck
 npm run build
 ```
+
+The suite is fully offline: LLM and search calls are mocked, so it runs in ~3
+seconds and costs nothing. For a check against the real providers, use the
+evaluation harness below.
 
 ---
 
@@ -246,7 +296,10 @@ All settings are configurable via environment variables or `.env`:
 | `LLM_MODEL` | `llama-3.3-70b-versatile` | Groq model to use |
 | `SEARCH_PROVIDER` | `auto` | `auto` / `tavily` / `duckduckgo` |
 | `CONFIDENCE_THRESHOLD` | `0.7` | Below this → human review flag |
-| `DB_PATH` | `data/memory.db` | SQLite database location |
+| `DATA_DIR` | `data` | Storage root — vector index, catalog, history. **Mount a volume here in production** |
+| `DB_PATH` | `{DATA_DIR}/memory.db` | Override the SQLite path specifically |
+| `LOG_FORMAT` | `text` | `json` for structured logs a log aggregator can query |
+| `LOG_LEVEL` | `INFO` | Standard Python levels |
 | `REQUEST_TIMEOUT` | `180` | Seconds before the pipeline is abandoned |
 | `MAX_TOOL_ROUNDS` | `5` | Researcher ReAct loop cap |
 | `MAX_RESEARCH_RETRIES` | `1` | Self-reflection passes back to the researcher |
@@ -271,8 +324,8 @@ The frontend container takes two of its own:
 | # | Guardrail | How it works |
 |:---:|---|---|
 | 1 | **Confidence Scoring** | Every agent outputs a confidence score (0-1). Below threshold triggers human review flag |
-| 2 | **Self-Reflection** | Analyst detects significant research gaps → routes back to Researcher (max 1 retry) |
-| 3 | **Error Fallback** | Agent failures produce degraded but usable output instead of crashing |
+| 2 | **Self-Reflection** | Analyst detects significant research gaps → routes back to Researcher (max 1 retry), carrying the gaps into the retry prompt |
+| 3 | **Error Fallback** | Agent failures produce degraded but usable output instead of crashing. A malformed provider tool call falls back to writing up sources already gathered rather than losing the pass |
 | 4 | **Request Timeout** | Configurable hard limit (default 180s) prevents infinite LLM loops |
 | 5 | **Input Validation** | Pydantic enforces message length (3-1000 chars) and request schema |
 | 6 | **Global Exception Handler** | Unhandled errors return structured JSON, not stack traces |
@@ -293,12 +346,30 @@ The built-in LLM-as-judge evaluator scores reports on 4 weighted dimensions:
 | **Completeness** | 25% | Does the report cover the query thoroughly? |
 | **Clarity** | 20% | Is the writing clear and professional? |
 
+Grade a single query through the API:
+
 ```bash
-# Run evaluation via API
 curl -X POST http://localhost:8000/agent/evaluate \
   -H "Content-Type: application/json" \
   -d '{"message": "What are the latest trends in AI agents?"}'
 ```
+
+### Golden-set regression harness
+
+A fixed set of queries scored by the judge, so quality drift is measurable
+rather than anecdotal. It **fails the run if the mean score drops below
+threshold, or if any report cites nothing** — the failure mode this project
+exists to prevent.
+
+```bash
+cd backend
+python -m eval.run_eval               # full set
+python -m eval.run_eval --limit 2     # quick check
+python -m eval.run_eval --json out.json
+```
+
+Kept out of the unit suite deliberately: it makes real LLM and search calls,
+takes minutes, and costs money. Run it before a release or on a schedule.
 
 ---
 
@@ -310,16 +381,15 @@ curl -X POST http://localhost:8000/agent/evaluate \
 |:---:|---|
 | **Orchestration** | LangGraph (StateGraph with conditional routing) |
 | **LLM** | Groq (Llama 3.3 70B) with tool calling |
-| **Search** | DuckDuckGo (free) / Tavily (premium) |
-| **RAG** | FAISS + HuggingFace `all-MiniLM-L6-v2` |
+| **Search** | Tavily (quality) or DuckDuckGo via `ddgs` (free) |
+| **RAG** | fastembed `BAAI/bge-small-en-v1.5` (ONNX) + FAISS, persisted to disk |
 | **Backend** | FastAPI (async, SSE streaming) |
-| **Frontend** | React 18 + TypeScript + Vite · zero UI dependencies, custom design system |
+| **Frontend** | React 18 + TypeScript + Vite · custom design system, no UI library |
 | **Edge** | nginx — SPA hosting, API proxy, server-side key injection |
-| **Hosting** | Azure Container Apps (scale-to-zero) + ACR |
-| **Memory** | SQLite + LangGraph MemorySaver |
+| **Hosting** | Azure Container Apps (scale-to-zero) + ACR + Azure Files |
+| **Memory** | SQLite on a mounted volume + LangGraph checkpointer |
 | **Tracing** | LangSmith (optional) |
-| **CI/CD** | GitHub Actions (Ruff + pytest) |
-| **Container** | Docker |
+| **CI** | GitHub Actions — Ruff, pytest, tsc, Docker builds |
 
 </div>
 
@@ -345,8 +415,10 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for details.
 
 <div align="center">
 
-<h4>Built with ❤️ by <a href="https://github.com/23f3001800">23f3001800</a></h4>
+**[Live demo](https://research-agent-ui.agreeablestone-a7a39990.centralindia.azurecontainerapps.io)** · **[Project guide](PROJECT_GUIDE.md)**
 
-⭐ Star this repo if you found it useful!
+<sub>Built by <a href="https://github.com/23f3001800">23f3001800</a></sub>
+
+⭐ Star this repo if you found it useful
 
 </div>
