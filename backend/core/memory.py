@@ -9,8 +9,9 @@ logger = get_logger(__name__)
 # LangGraph checkpointer (MemorySaver for now — graph state checkpointing)
 _checkpointer = None
 
-# SQLite-backed conversation history
-_db_path = getattr(settings, "db_path", "data/memory.db")
+# SQLite-backed conversation history, under the shared storage root so it
+# survives a restart when DATA_DIR points at a mounted volume.
+_db_path = settings.resolved_db_path
 
 
 def _get_db_connection() -> sqlite3.Connection:

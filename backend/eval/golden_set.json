@@ -1,0 +1,15 @@
+{
+  "description": "Fixed queries for regression-testing report quality over time. Keep this set stable — changing the questions destroys comparability with earlier runs.",
+  "min_overall_score": 3.0,
+  "min_sources_per_report": 1,
+  "queries": [
+    "What is LangGraph and what is it used for?",
+    "What are the main security risks of autonomous AI agents?",
+    "How do vector databases differ from traditional databases?",
+    "What is retrieval-augmented generation and why is it used?",
+    "What are the trade-offs between fine-tuning and prompting?",
+    "How does Server-Sent Events differ from WebSockets?",
+    "What is the current state of open-weight language models?",
+    "What are common failure modes of multi-agent LLM systems?"
+  ]
+}

@@ -5,6 +5,8 @@ from config import settings
 from core.state import AgentState
 from schemas.models import WriterReport
 from core.logger import get_logger
+from core.usage import UsageCallbackHandler
+from core import events
 
 logger = get_logger(__name__)
 
@@ -14,6 +16,7 @@ def get_writer_llm():
         model=settings.llm_model,
         api_key=settings.groq_api_key,
         temperature=0.2,
+        callbacks=[UsageCallbackHandler("writer")],
     )
 
 
@@ -51,6 +54,7 @@ def writer_node(state: AgentState) -> AgentState:
     analysis = state.get("analysis_output", "No analysis available.")
     start = time.perf_counter()
     logger.info("Writer started | generating structured report")
+    events.emit("agent_start", agent="writer")
 
     llm = get_writer_llm()
     structured_llm = llm.with_structured_output(WriterReport)

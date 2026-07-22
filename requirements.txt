@@ -16,9 +16,8 @@ langchain-text-splitters
 langgraph
 
 # Search
-duckduckgo-search
+ddgs
 
 # HTTP
 requests
 httpx
-sseclient-py

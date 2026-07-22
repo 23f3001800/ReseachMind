@@ -1,0 +1,18 @@
+# Optional RAG stack — document upload, chunking, and semantic search.
+#
+# Embeddings run on fastembed (ONNX), deliberately not sentence-transformers.
+# sentence-transformers pulls in torch and takes the image from ~200 MB to
+# ~2.5 GB, which on a scale-to-zero platform turns every cold start into a
+# multi-minute image pull. fastembed is ~50 MB of runtime for the same class
+# of model, so RAG can ship in the default image instead of being permanently
+# disabled.
+#
+# Install alongside the locked core:
+#     pip install -r requirements.lock -r requirements-rag.txt
+#
+# If these are absent the API still boots — /health reports
+# "rag_available": false and the document endpoints return 501.
+
+fastembed==0.8.0
+faiss-cpu==1.14.3
+pypdf==6.14.2

@@ -16,17 +16,20 @@ langchain-text-splitters
 langgraph
 
 # Search
-duckduckgo-search
+# `ddgs` is the current package; the old `duckduckgo-search` name is no longer
+# what langchain-community imports, and its absence makes every free-tier
+# search fail silently and fall back to model memory.
+ddgs
 
 # HTTP
 requests
 httpx
 
-# RAG (optional — install for document upload + vector search)
-# pip install faiss-cpu langchain-huggingface sentence-transformers pypdf
+# RAG (optional — needs ~1GB RAM, see requirements-rag.txt)
+# pip install -r requirements-rag.txt
 
 # Frontend (run separately — not needed for API server)
-# pip install streamlit sseclient-py
+# see frontend/requirements.txt
 
 # Testing (dev only)
 # pip install pytest ruff

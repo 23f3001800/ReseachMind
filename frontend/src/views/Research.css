@@ -1,0 +1,115 @@
+.research {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.composer {
+  padding: var(--sp-4);
+}
+
+.composer__label {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-subtle);
+  margin-bottom: var(--sp-2);
+}
+
+.composer__input {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  padding: var(--sp-3);
+  resize: vertical;
+  min-height: 76px;
+  line-height: var(--lh-normal);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.composer__input::placeholder {
+  color: var(--text-subtle);
+}
+
+.composer__input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: var(--focus-ring);
+}
+
+.composer__input:disabled {
+  opacity: 0.6;
+}
+
+.composer__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.composer__examples {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.chip {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  padding: var(--sp-1) var(--sp-3);
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.chip:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+}
+
+.composer__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-left: auto;
+  flex: none;
+}
+
+.composer__kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: var(--r-sm);
+  padding: 1px 5px;
+}
+
+@media (max-width: 640px) {
+  .composer__kbd {
+    display: none;
+  }
+  .composer__actions {
+    width: 100%;
+  }
+  .composer__actions .btn {
+    flex: 1;
+  }
+}

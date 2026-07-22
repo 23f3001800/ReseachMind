@@ -11,11 +11,13 @@ class AgentState(TypedDict):
     research_output:   Optional[str]
     analysis_output:   Optional[str]
     final_report:      Optional[Dict]
-    sources:           List[str]
+    sources:           List[Dict]      # {url, title, provider} — retrieved, not generated
     confidence:        float
     needs_human_review: bool
     review_reason:     Optional[str]
     iterations:        int
     next_agent:        Optional[str]
     research_gaps:     bool            # True if analyst found significant gaps
-    retry_count:       int             # Number of researcher retries so far
+    research_gaps_detail: List[str]    # The gaps themselves, fed to the retry pass
+    retry_count:       int             # Number of researcher retries so far
+    token_usage:       Optional[Dict]  # Measured token/cost totals for this run

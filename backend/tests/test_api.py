@@ -16,7 +16,7 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
-        assert data["service"] == "agentic-research-assistant"
+        assert data["service"] == "researchmind"
 
 
 class TestGraphEndpoint:
@@ -62,10 +62,17 @@ class TestChatEndpoint:
                 "analysis": ["Insight 1"],
                 "conclusion": "Test conclusion.",
             },
-            "sources": ["source1.com"],
+            "sources": [{"url": "https://source1.com", "title": "Source One", "provider": "tavily"}],
             "confidence": 0.85,
             "needs_human_review": False,
             "iterations": 3,
+            "token_usage": {
+                "total_input_tokens": 1200,
+                "total_output_tokens": 800,
+                "total_tokens": 2000,
+                "estimated_cost_usd": 0.00134,
+                "agent_breakdown": {},
+            },
         }
 
         response = client.post("/agent/chat", json={
@@ -80,6 +87,39 @@ class TestChatEndpoint:
         assert data["report"]["confidence"] == 0.85
         assert data["iterations"] == 3
         assert data["latency_ms"] > 0
+        assert data["report"]["sources"][0]["url"] == "https://source1.com"
+
+    @patch("main.run_agent", new_callable=AsyncMock)
+    def test_token_usage_is_measured_not_estimated(self, mock_run_agent):
+        """Reported tokens must come from the pipeline, not a per-iteration guess."""
+        mock_run_agent.return_value = {
+            "final_report": {
+                "title": "T", "summary": "S",
+                "research_findings": [], "analysis": [], "conclusion": "C",
+            },
+            "sources": [],
+            "confidence": 0.9,
+            "needs_human_review": False,
+            "iterations": 3,
+            "token_usage": {
+                "total_input_tokens": 1234,
+                "total_output_tokens": 567,
+                "total_tokens": 1801,
+                "estimated_cost_usd": 0.00118,
+                "agent_breakdown": {"researcher": {"total_tokens": 1801}},
+            },
+        }
+
+        response = client.post("/agent/chat", json={
+            "message": "Measure my tokens please",
+            "thread_id": "usage-thread",
+        })
+
+        assert response.status_code == 200
+        usage = response.json()["token_usage"]
+        assert usage["total_tokens"] == 1801
+        # The old estimator would have produced iterations*800 = 2400
+        assert usage["total_tokens"] != 3 * 800
 
     @patch("main.run_agent", new_callable=AsyncMock)
     def test_no_output_returns_500(self, mock_run_agent):

@@ -3,6 +3,20 @@
 import pytest
 from unittest.mock import MagicMock
 from langchain_core.messages import HumanMessage
+from agents import tools as agent_tools
+from core import usage as core_usage
+
+
+@pytest.fixture(autouse=True)
+def _isolate_collectors():
+    """Reset the thread-local source and token collectors between tests.
+
+    They accumulate across a run by design (so a retry pass adds to the first
+    pass), which would otherwise leak state from one test into the next.
+    """
+    agent_tools.reset_sources()
+    core_usage.reset_llm_usage()
+    yield
 
 
 @pytest.fixture
@@ -21,7 +35,9 @@ def sample_state():
         "iterations": 0,
         "next_agent": "researcher",
         "research_gaps": False,
+        "research_gaps_detail": [],
         "retry_count": 0,
+        "token_usage": None,
     }
 
 

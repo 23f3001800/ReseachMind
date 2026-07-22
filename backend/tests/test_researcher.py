@@ -2,6 +2,7 @@
 
 from unittest.mock import patch, MagicMock
 from agents.researcher import researcher_node
+from agents.tools import collect_source
 
 
 class TestResearcherNode:
@@ -21,11 +22,7 @@ class TestResearcherNode:
         mock_response = MagicMock()
         mock_response.content = """FINDINGS:
 1. AI is advancing rapidly.
-2. Multi-agent systems are growing.
-
-SOURCES:
-- AI research papers 2026
-- Industry reports"""
+2. Multi-agent systems are growing."""
         mock_response.tool_calls = []
 
         mock_llm = MagicMock()
@@ -38,8 +35,77 @@ SOURCES:
         assert result["research_output"] is not None
         assert result["confidence"] == 0.8
         assert result["next_agent"] == "analyst"
-        assert len(result["sources"]) > 0
         assert result["iterations"] == 1
+
+    @patch("agents.researcher.get_search_tools")
+    @patch("agents.researcher.get_researcher_llm")
+    def test_sources_come_only_from_retrieved_pages(self, mock_llm_factory, mock_tools, sample_state):
+        """Sources must reflect pages actually retrieved, not text the model wrote."""
+        mock_tools.return_value = []
+
+        # The model invents a citation in its prose...
+        mock_response = MagicMock()
+        mock_response.content = "FINDINGS:\n1. A claim.\n\nSOURCES:\n- Totally Made Up Journal 2026"
+        mock_response.tool_calls = []
+
+        mock_llm = MagicMock()
+        mock_llm.bind_tools.return_value = mock_llm
+        mock_llm.invoke.return_value = mock_response
+        mock_llm_factory.return_value = mock_llm
+
+        # ...while the search layer actually retrieved this page.
+        collect_source("https://example.com/real", "Real Page", "duckduckgo")
+
+        result = researcher_node(sample_state)
+
+        assert result["sources"] == [
+            {"url": "https://example.com/real", "title": "Real Page", "provider": "duckduckgo"}
+        ]
+        assert "Totally Made Up Journal" not in str(result["sources"])
+
+    @patch("agents.researcher.get_search_tools")
+    @patch("agents.researcher.get_researcher_llm")
+    def test_no_searches_means_no_citations(self, mock_llm_factory, mock_tools, sample_state):
+        """If the agent never searched, the report cites nothing."""
+        mock_tools.return_value = []
+
+        mock_response = MagicMock()
+        mock_response.content = "FINDINGS:\n1. From memory.\n\nSOURCES:\n- Some Report"
+        mock_response.tool_calls = []
+
+        mock_llm = MagicMock()
+        mock_llm.bind_tools.return_value = mock_llm
+        mock_llm.invoke.return_value = mock_response
+        mock_llm_factory.return_value = mock_llm
+
+        result = researcher_node(sample_state)
+
+        assert result["sources"] == []
+
+    @patch("agents.researcher.get_search_tools")
+    @patch("agents.researcher.get_researcher_llm")
+    def test_retry_prompt_targets_identified_gaps(self, mock_llm_factory, mock_tools, sample_state):
+        """A second pass must ask for the gaps, not repeat the first pass verbatim."""
+        mock_tools.return_value = []
+        sample_state["research_gaps_detail"] = ["Missing market size data", "No 2026 figures"]
+        sample_state["research_output"] = "FINDINGS:\n1. Earlier finding."
+
+        mock_response = MagicMock()
+        mock_response.content = "FINDINGS:\n1. Market size is $12B."
+        mock_response.tool_calls = []
+
+        mock_llm = MagicMock()
+        mock_llm.bind_tools.return_value = mock_llm
+        mock_llm.invoke.return_value = mock_response
+        mock_llm_factory.return_value = mock_llm
+
+        researcher_node(sample_state)
+
+        sent_messages = mock_llm.invoke.call_args[0][0]
+        user_content = sent_messages[1]["content"]
+        assert "Missing market size data" in user_content
+        assert "No 2026 figures" in user_content
+        assert "CLOSE THOSE GAPS" in user_content
 
     @patch("agents.researcher.get_search_tools")
     @patch("agents.researcher.get_researcher_llm")

@@ -1,3 +1,4 @@
+import re
 import time
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
@@ -5,8 +6,55 @@ from langchain_core.output_parsers import StrOutputParser
 from config import settings
 from core.state import AgentState
 from core.logger import get_logger
+from core.usage import UsageCallbackHandler
+from core import events
 
 logger = get_logger(__name__)
+
+# Phrases an LLM uses to say "no gaps here" — these must not be counted as gaps,
+# otherwise a clean analysis triggers a pointless second research pass.
+#
+# Anchored end-to-end on purpose: the whole item has to be the non-answer.
+# A bare "no ..." prefix would swallow real gaps like "No regional breakdown"
+# or "No 2026 figures", which are exactly what the retry pass exists to chase.
+_NON_GAP_PATTERN = re.compile(
+    r"^\W*(?:"
+    r"(?:none|n/?a|nothing|not\s+applicable)"
+    r"(?:\s+(?:significant|major|identified|found|noted|apparent|obvious|missing|notable|of\s+note))?"
+    r"|no\s+(?:significant|major|obvious|notable|apparent|clear)?\s*"
+    r"(?:gaps?|issues?|contradictions?|concerns?|omissions?|limitations?)"
+    r")\W*$",
+    re.IGNORECASE,
+)
+
+
+def _extract_gaps(analysis_text: str) -> list[str]:
+    """Pull real gap items out of the analyst's GAPS IDENTIFIED section.
+
+    Counts bullet/numbered *items* rather than lines, so a single gap that
+    wraps across two lines is one gap, and drops "None identified" style
+    non-answers.
+    """
+    if "GAPS IDENTIFIED:" not in analysis_text:
+        return []
+
+    section = analysis_text.split("GAPS IDENTIFIED:")[-1].strip()
+
+    gaps: list[str] = []
+    for raw_line in section.split("\n"):
+        line = raw_line.strip()
+        if not line:
+            continue
+        # Only bullet or numbered items start a new gap; anything else is a
+        # continuation of the previous one.
+        if re.match(r"^([-*•]|\d+[.)])\s+", line):
+            item = re.sub(r"^([-*•]|\d+[.)])\s+", "", line).strip()
+            if item and not _NON_GAP_PATTERN.match(item):
+                gaps.append(item)
+        elif gaps:
+            gaps[-1] = f"{gaps[-1]} {line}"
+
+    return gaps
 
 
 def get_analyst_llm():
@@ -14,6 +62,7 @@ def get_analyst_llm():
         model=settings.llm_model,
         api_key=settings.groq_api_key,
         temperature=0.1,
+        callbacks=[UsageCallbackHandler("analyst")],
     )
 
 
@@ -52,6 +101,7 @@ def analyst_node(state: AgentState) -> AgentState:
     research = state.get("research_output", "")
     start = time.perf_counter()
     logger.info(f"Analyst started | research_length={len(research) if research else 0}")
+    events.emit("agent_start", agent="analyst")
 
     if not research:
         logger.warning("Analyst received empty research — flagging for review")
@@ -78,20 +128,16 @@ def analyst_node(state: AgentState) -> AgentState:
             confidence = min(confidence, 0.5)
 
         # Detect research gaps for potential retry
-        has_gaps = "GAPS IDENTIFIED:" in result
-        gap_lines = []
-        if has_gaps:
-            gap_section = result.split("GAPS IDENTIFIED:")[-1].strip()
-            gap_lines = [line.strip() for line in gap_section.split("\n") if line.strip() and len(line.strip()) > 5]
-        significant_gaps = len(gap_lines) >= 2
+        gaps = _extract_gaps(result)
+        significant_gaps = len(gaps) >= 2
 
         retry_count = state.get("retry_count", 0)
-        max_retries = 1
+        max_retries = settings.max_research_retries
 
         # If significant gaps found and we haven't retried yet, go back to researcher
         if significant_gaps and retry_count < max_retries:
             logger.info(
-                f"Analyst found {len(gap_lines)} gaps — routing back to researcher "
+                f"Analyst found {len(gaps)} gaps — routing back to researcher "
                 f"(retry {retry_count + 1}/{max_retries})"
             )
             next_agent = "researcher"
@@ -101,7 +147,7 @@ def analyst_node(state: AgentState) -> AgentState:
         elapsed = round((time.perf_counter() - start) * 1000, 2)
         logger.info(
             f"Analyst completed | confidence={confidence} "
-            f"gaps={len(gap_lines)} next={next_agent} duration_ms={elapsed}"
+            f"gaps={len(gaps)} next={next_agent} duration_ms={elapsed}"
         )
 
         return {
@@ -109,6 +155,9 @@ def analyst_node(state: AgentState) -> AgentState:
             "analysis_output": result,
             "confidence": confidence,
             "research_gaps": significant_gaps,
+            # Handed to the researcher so the retry targets these specifically.
+            # Cleared when moving on, so the writer never sees stale gaps.
+            "research_gaps_detail": gaps if next_agent == "researcher" else [],
             "retry_count": retry_count + (1 if next_agent == "researcher" else 0),
             "iterations": state.get("iterations", 0) + 1,
             "next_agent": next_agent,

@@ -34,13 +34,24 @@ class AnalysisResult(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
 
 
+class Source(BaseModel):
+    """A page the system actually retrieved during research.
+
+    Only ever built from executed search results — never from model output —
+    so every citation in a report is traceable.
+    """
+    url: str
+    title: str = ""
+    provider: str = ""
+
+
 class FinalReport(BaseModel):
     title: str
     summary: str
     research_findings: List[str]
     analysis: List[str]
     conclusion: str
-    sources: List[str]
+    sources: List[Source] = []
     confidence: float = Field(ge=0.0, le=1.0)
     needs_human_review: bool = False
 
@@ -65,11 +76,20 @@ class ChatResponse(BaseModel):
     report: FinalReport
     latency_ms: float
     iterations: int
+    token_usage: Optional[dict] = None
+
+
+class SearchRequest(BaseModel):
+    """Body for semantic search over uploaded documents."""
+    query: str = Field(..., min_length=1, max_length=1000)
+    k: int = Field(default=5, ge=1, le=20)
 
 
 class StreamEvent(BaseModel):
     """Server-Sent Event payload for streaming agent progress."""
-    event: Literal["agent_start", "agent_end", "tool_call", "error", "complete"]
+    event: Literal[
+        "agent_start", "agent_end", "tool_call", "tool_result", "error", "complete"
+    ]
     agent: Optional[str] = None
     content: Optional[str] = None
     data: Optional[dict] = None

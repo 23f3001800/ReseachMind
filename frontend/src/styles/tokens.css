@@ -1,0 +1,138 @@
+/* ── Design tokens ────────────────────────────────────────
+   One source of truth for colour, space, type and motion.
+   Components reference only these variables, never raw values,
+   so a theme change is a token change.
+   ──────────────────────────────────────────────────────── */
+
+:root {
+  /* Spacing — 4px base, geometric-ish so layouts stay on grid */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+  --sp-8: 4rem;
+
+  /* Radii */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-full: 999px;
+
+  /* Type scale */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.125rem;
+  --fs-xl: 1.375rem;
+  --fs-2xl: 1.75rem;
+  --fs-3xl: 2.25rem;
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.4;
+  --lh-normal: 1.6;
+  --lh-relaxed: 1.75;
+
+  /* Motion */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 400ms;
+
+  /* Layout */
+  --sidebar-w: 264px;
+  --content-max: 1180px;
+}
+
+/* ── Light theme ─────────────────────────────────────────
+   Warm-neutral greys rather than pure grey — reads less
+   clinical and gives the accent room to sit.               */
+:root[data-theme="light"] {
+  --bg: #fbfaf9;
+  --bg-subtle: #f4f2f0;
+  --surface: #ffffff;
+  --surface-2: #faf9f8;
+  --surface-hover: #f4f2f0;
+  --border: #e6e2de;
+  --border-strong: #d3cec8;
+
+  --text: #1c1917;
+  --text-muted: #6b625b;
+  --text-subtle: #938a82;
+  --text-inverse: #ffffff;
+
+  --accent: #3b5bdb;
+  --accent-hover: #364fc7;
+  --accent-soft: #eef1fd;
+  --accent-border: #c5cff7;
+  --accent-text: #2f4bc4;
+
+  --success: #2f7a4d;
+  --success-soft: #e8f5ec;
+  --success-border: #b8dfc6;
+
+  --warning: #a8620a;
+  --warning-soft: #fdf3e4;
+  --warning-border: #f0d5aa;
+
+  --danger: #c0342b;
+  --danger-soft: #fdeceb;
+  --danger-border: #f5c2be;
+
+  --shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.06);
+  --shadow: 0 2px 4px rgba(28, 25, 23, 0.05), 0 4px 12px rgba(28, 25, 23, 0.05);
+  --shadow-lg: 0 8px 28px rgba(28, 25, 23, 0.1);
+
+  --focus-ring: 0 0 0 3px var(--accent-soft), 0 0 0 1px var(--accent);
+}
+
+/* ── Dark theme ──────────────────────────────────────────
+   Elevated surfaces get lighter, not just bordered, so depth
+   still reads without heavy shadows.                       */
+:root[data-theme="dark"] {
+  --bg: #131316;
+  --bg-subtle: #0e0e10;
+  --surface: #1b1b1f;
+  --surface-2: #212126;
+  --surface-hover: #27272e;
+  --border: #2c2c33;
+  --border-strong: #3b3b44;
+
+  --text: #ececf1;
+  --text-muted: #a1a1ad;
+  --text-subtle: #74747f;
+  --text-inverse: #131316;
+
+  --accent: #7c94f4;
+  --accent-hover: #93a7f7;
+  --accent-soft: #1e2340;
+  --accent-border: #333c66;
+  --accent-text: #a8b8fa;
+
+  --success: #5fbd80;
+  --success-soft: #16281d;
+  --success-border: #27492f;
+
+  --warning: #dda14a;
+  --warning-soft: #2b2114;
+  --warning-border: #4d3a1d;
+
+  --danger: #ef7a72;
+  --danger-soft: #2e1817;
+  --danger-border: #5a2a27;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 8px 20px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.5);
+
+  --focus-ring: 0 0 0 3px var(--accent-soft), 0 0 0 1px var(--accent);
+}

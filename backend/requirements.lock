@@ -1,0 +1,38 @@
+# Locked versions — generated from a verified-working environment.
+#
+# Regenerate after an intentional upgrade:
+#   pip install -r requirements.txt -U && pip freeze > requirements.lock
+# Do not hand-edit.
+#
+# These pins are load-bearing, not bureaucracy. Two production outages in this
+# project came from unpinned dependency contracts changing underneath us:
+#   - langchain-community switched from `duckduckgo-search` to `ddgs`, so every
+#     free-tier search raised ImportError, was swallowed, and the agent invented
+#     citations instead.
+#   - langchain-tavily dropped the `api_key` kwarg in favour of reading
+#     TAVILY_API_KEY from the environment, so premium search failed on every call.
+# Both were silent. Neither would have happened with a lockfile.
+
+# Core API
+fastapi==0.135.3
+uvicorn[standard]==0.44.0
+pydantic==2.12.5
+pydantic-settings==2.13.1
+python-dotenv==1.2.2
+python-multipart==0.0.32
+
+# LangChain / LangGraph
+langchain==1.2.15
+langchain-core==1.2.28
+langchain-community==0.4.1
+langchain-groq==1.1.2
+langchain-tavily==0.2.17
+langchain-text-splitters==1.1.1
+langgraph==1.1.6
+
+# Search
+ddgs==9.14.4
+
+# HTTP
+requests==2.33.1
+httpx==0.28.1

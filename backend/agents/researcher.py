@@ -4,10 +4,35 @@ from langchain_core.messages import ToolMessage
 from config import settings
 from core.state import AgentState
 from core.logger import get_logger
-from agents.tools import get_search_tools
+from core.usage import UsageCallbackHandler
+from core import events
+from agents.tools import get_search_tools, get_collected_sources
 
 logger = get_logger(__name__)
 
+
+def _is_tool_call_failure(exc: Exception) -> bool:
+    """True for provider-side malformed-tool-call errors, which are retryable."""
+    text = str(exc).lower()
+    return "tool_use_failed" in text or "was not in request.tools" in text
+
+
+def _synthesise_without_tools(llm, messages: list):
+    """Ask the model to write up findings with tool calling disabled.
+
+    Used when the provider rejects a malformed tool call. Any search results
+    already gathered are in the message history, so this keeps them rather than
+    discarding the whole pass.
+    """
+    wrap_up = list(messages) + [{
+        "role": "human",
+        "content": (
+            "Stop searching and write up your findings now, using only the search "
+            "results already gathered above. Follow the FINDINGS format. Mark any "
+            "claim not supported by those results with [UNVERIFIED]."
+        ),
+    }]
+    return llm.invoke(wrap_up)
 
 
 def get_researcher_llm():
@@ -15,6 +40,7 @@ def get_researcher_llm():
         model=settings.llm_model,
         api_key=settings.groq_api_key,
         temperature=0.1,
+        callbacks=[UsageCallbackHandler("researcher")],
     )
 
 
@@ -24,21 +50,21 @@ You have access to a web_search tool. Use it to find current, factual informatio
 You may call the tool multiple times with different queries to be thorough.
 
 Rules:
-- Provide factual, sourced information only
+- Provide factual information drawn from the search results you retrieved
 - List specific findings as numbered points
-- Include source references where possible
+- Attribute each finding to the page it came from, using the real URL from the
+  search results — never invent, guess, or paraphrase a URL
 - Do NOT write conclusions or recommendations
 - Flag uncertainty explicitly with [UNCERTAIN]
+- If a claim comes from your own knowledge rather than a search result, mark it
+  [UNVERIFIED] rather than attributing it to a source
 - If you cannot find reliable info, say so clearly
 
 After gathering information via search, compile your final output as:
 FINDINGS:
-1. [finding]
-2. [finding]
+1. [finding] — [url it came from]
+2. [finding] — [url it came from]
 ...
-
-SOURCES:
-- [source or search query used]
 """
 
 
@@ -47,6 +73,7 @@ def researcher_node(state: AgentState) -> AgentState:
     query = state["query"]
     start = time.perf_counter()
     logger.info(f"Researcher started | query='{query[:80]}'")
+    events.emit("agent_start", agent="researcher", pass_number=state.get("retry_count", 0) + 1)
 
     # Check for RAG context from uploaded documents
     rag_context = ""
@@ -74,6 +101,24 @@ def researcher_node(state: AgentState) -> AgentState:
             f"with web search results: {query}"
         )
 
+    # Second pass: target the specific gaps the analyst found, rather than
+    # repeating the identical first-pass research.
+    gaps = state.get("research_gaps_detail") or []
+    if gaps:
+        gap_list = "\n".join(f"- {gap}" for gap in gaps)
+        previous = state.get("research_output") or ""
+        user_msg = (
+            f"A previous research pass on this topic left specific gaps. Your job now is to "
+            f"CLOSE THOSE GAPS — do not simply repeat the earlier findings.\n\n"
+            f"Gaps to close:\n{gap_list}\n\n"
+            f"Already established (do not re-report unless you can add detail):\n"
+            f"{previous[:2000]}\n\n"
+            f"---\n\n"
+            f"Run targeted searches for the gaps above and report what you find "
+            f"for the original query: {query}"
+        )
+        logger.info(f"Researcher retry | targeting {len(gaps)} gap(s)")
+
     messages = [
         {"role": "system", "content": RESEARCHER_SYSTEM},
         {"role": "human", "content": user_msg},
@@ -84,9 +129,25 @@ def researcher_node(state: AgentState) -> AgentState:
 
     try:
         # ReAct loop: let the LLM call tools until it produces a final text response
-        max_tool_rounds = 5
+        max_tool_rounds = settings.max_tool_rounds
+        response = None
         for round_num in range(max_tool_rounds):
-            response = llm_with_tools.invoke(messages)
+            try:
+                response = llm_with_tools.invoke(messages)
+            except Exception as e:
+                # Groq intermittently emits a malformed function call, which the
+                # API rejects with tool_use_failed. Losing the whole research pass
+                # over one bad round throws away every source already retrieved,
+                # so fall back to a plain (tool-free) synthesis of what we have.
+                if not _is_tool_call_failure(e):
+                    raise
+                logger.warning(
+                    f"Malformed tool call from provider on round {round_num + 1} — "
+                    f"synthesising from {len(get_collected_sources())} source(s) already retrieved"
+                )
+                response = _synthesise_without_tools(llm, messages)
+                break
+
             messages.append(response)
 
             # If no tool calls, the LLM is done — break out
@@ -98,13 +159,33 @@ def researcher_node(state: AgentState) -> AgentState:
             for tool_call in response.tool_calls:
                 tool_name = tool_call["name"]
                 tool_args = tool_call["args"]
+                search_query = str(tool_args.get("query", ""))
                 logger.info(f"Tool call | tool={tool_name} args={tool_args}")
 
+                # Report the search before running it — this is the part of the
+                # run the user waits longest for, and seeing the actual query is
+                # what makes the agent legible rather than a spinner.
+                events.emit(
+                    "tool_call",
+                    agent="researcher",
+                    tool=tool_name,
+                    query=search_query,
+                )
+
+                before = len(get_collected_sources())
                 tool_fn = tool_map.get(tool_name)
                 if tool_fn:
                     tool_result = tool_fn.invoke(tool_args)
                 else:
                     tool_result = f"Unknown tool: {tool_name}"
+
+                events.emit(
+                    "tool_result",
+                    agent="researcher",
+                    tool=tool_name,
+                    query=search_query,
+                    new_sources=len(get_collected_sources()) - before,
+                )
 
                 messages.append(
                     ToolMessage(content=str(tool_result), tool_call_id=tool_call["id"])
@@ -116,15 +197,9 @@ def researcher_node(state: AgentState) -> AgentState:
         result = response.content if hasattr(response, "content") else str(response)
         confidence = 0.8 if "[UNCERTAIN]" not in result else 0.5
 
-        # Extract sources from output
-        sources = []
-        if "SOURCES:" in result:
-            source_section = result.split("SOURCES:")[-1]
-            sources = [
-                line.strip("- ").strip()
-                for line in source_section.strip().split("\n")
-                if line.strip()
-            ]
+        # Sources come from search results the system actually retrieved —
+        # never from text the model wrote. No search, no citation.
+        sources = get_collected_sources()
 
         elapsed = round((time.perf_counter() - start) * 1000, 2)
         logger.info(

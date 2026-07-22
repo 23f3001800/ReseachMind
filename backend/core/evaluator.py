@@ -16,6 +16,7 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from config import settings
 from core.logger import get_logger
+from core.usage import UsageCallbackHandler
 
 logger = get_logger(__name__)
 
@@ -92,6 +93,7 @@ def evaluate_report(
             model=settings.llm_model,
             api_key=settings.groq_api_key,
             temperature=0.0,  # Deterministic for evaluation
+            callbacks=[UsageCallbackHandler("evaluator")],
         )
 
         structured_llm = llm.with_structured_output(EvaluationResult)
@@ -99,7 +101,13 @@ def evaluate_report(
 
         findings_str = "\n".join(f"- {f}" for f in report.get("research_findings", []))
         analysis_str = "\n".join(f"- {a}" for a in report.get("analysis", []))
-        sources_str = ", ".join(sources or report.get("sources", []))
+
+        # Sources are {url, title, provider} dicts; older callers may pass strings.
+        raw_sources = sources if sources is not None else report.get("sources", [])
+        sources_str = ", ".join(
+            s.get("url", "") if isinstance(s, dict) else str(s)
+            for s in raw_sources
+        )
 
         result = chain.invoke({
             "query": query,
