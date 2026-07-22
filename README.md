@@ -162,8 +162,8 @@ researchMind/
 ### 1. Clone & Setup
 
 ```bash
-git clone https://github.com/23f3001800/Autonomous-AI-Research-Agent.git
-cd Autonomous-AI-Research-Agent
+git clone https://github.com/23f3001800/ResearchMind.git
+cd ResearchMind
 
 # Create .env from template
 cp .env.example backend/.env
